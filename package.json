@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@fingerprintjs/fingerprintjs-pro-server-api": "^2.1.0",
     "@waylaidwanderer/chatgpt-api": "^1.32.8",
     "bcrypt": "^5.1.0",
     "body-parser": "^1.20.2",
@@ -20,6 +21,7 @@
     "html-entities": "^2.3.3",
     "jsonwebtoken": "^9.0.0",
     "microsoft-cognitiveservices-speech-sdk": "^1.27.0",
+    "mongoose": "^7.4.3",
     "node-html-parser": "^6.1.5",
     "node-mailjet": "^6.0.2",
     "openai": "^3.2.1",
