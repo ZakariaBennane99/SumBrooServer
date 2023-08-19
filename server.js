@@ -14,6 +14,15 @@ import { SESClient, SendTemplatedEmailCommand } from "@aws-sdk/client-ses";
 import dns from 'dns'
 
 
+function generateOTP() {
+  return Math.floor(Math.random() * (9999999 - 1000000 + 1)) + 1000000;
+}
+
+function capitalize(wd) {
+  return wd.charAt(0).toUpperCase() + wd.slice(1);
+}
+
+
 const PORT = 4050
 
 
@@ -390,7 +399,7 @@ app.post("/api/change-password",
   let user = await User.findOne({ email })
 
   if (!user) {
-    res.status(200).send({ success: true })
+    res.status(401).json({ errors: 'Invalid Email' })
     return
   }
 
@@ -405,10 +414,54 @@ app.post("/api/change-password",
 
   try {
 
-    res.status(200).send(token)
+    async function sendEmail(nm, OTP, email) {
+      const params = {
+          Destination: {
+              ToAddresses: [email]
+          },
+          Template: 'Password_OTP_Template',
+          TemplateData: JSON.stringify({
+            name: capitalize(nm),
+            OTP: OTP
+          }),
+          Source: 'no-reply@sumbroo.com'
+      };
+  
+      const command = new SendTemplatedEmailCommand(params);
+  
+      try {
+          const data = await sesClient.send(command);
+          return {
+            status: 200,
+            response: { success: true, messageId: data.MessageId }
+          };
+      } catch (err) {
+          console.error(err);
+          return {
+            status: 500,
+            response: { error: 'Failed to send the email.' }
+          };
+      }
+    }
+  
+    // Send the email
+    const OTP = generateOTP()
+    sendEmail(user.name, OTP, email).then(result => {
+      if (result.status === 200) {
+        console.log("Email sent successfully:", result.response);
+        // create the token here
+        jwt.sign(payload, process.env.OTP_SECRET, { expiresIn: '10m' });
+        return res.status(200).json({ ok: 'success' });
+      } else {
+        console.error("Error sending email:", result.response);
+        return res.status(400).json({ error: err });
+      }
+    }); 
+
   } catch (error) {
     console.error('Error sending email:', error);
     res.status(500).send("Server Error")
+    return
   }
 
 })
