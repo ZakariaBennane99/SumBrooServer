@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-ses": "^3.395.0",
     "@fingerprintjs/fingerprintjs-pro-server-api": "^2.1.0",
     "@waylaidwanderer/chatgpt-api": "^1.32.8",
     "bcrypt": "^5.1.0",

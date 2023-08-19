@@ -10,6 +10,7 @@ import connectDB from './db.js';
 import bcrypt from 'bcrypt'
 import Stripe from 'stripe';
 import mongoSanitize from 'express-mongo-sanitize';
+import { SESClient, SendTemplatedEmailCommand } from "@aws-sdk/client-ses";
 import dns from 'dns'
 
 
@@ -126,23 +127,13 @@ app.post('/api/webhook', async (request, response) => {
   console.log('Just Before the event')
   if (event.type === 'checkout.session.completed') {
 
-    console.log('Running inside the webhook')
-
-    try {
-
-    } catch(err) {
-
-    }
-
     const session = event.data.object;
     const customerId = session.customer; 
     const userIdFromMetadata = session.metadata.userId;
 
-    console.log(customerId, userIdFromMetadata)
-
     /// update the user onboarding ste ///
     let user = await User.findOne({ _id: userIdFromMetadata })
-    if (!user) return;
+    if (!user) return response.status(400);
     user.onboardingStep = 2
     user.stripeId = customerId
     await user.save()
@@ -161,7 +152,7 @@ app.post('/api/set-up-password',
     .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
     .matches(/[0-9]/).withMessage('Password must contain at least one number')
     .matches(/[!@#$%^&*]/).withMessage('Password must contain at least one special character (!@#$%^&*)')
-    .trim()
+    .trim().escape()
 ], async (req, res) => {
     const errors = validationResult(req)
     if (!errors.isEmpty()) {
@@ -218,8 +209,6 @@ app.get('/api/verify-checkout', async (req, res) => {
   try {
 
     const session = await stripe.checkout.sessions.retrieve(session_id)
-
-    const userInfo = JSON.parse(session.metadata.userInfo);
 
     let user = await User.findOne({ email })
 
@@ -291,10 +280,10 @@ app.post('/api/create-customer-portal-session', async (req, res) => {
 
 app.post('/api/new-application',
   [
-    check('name', 'Name is required').not().isEmpty(),
+    check('name', 'Name is required').not().isEmpty().trim().escape(),
     check('name', 'Name should be between 5 and 30 characters').isLength({ min: 5, max: 30 }),
     check('name', 'Name should only contain alphanumeric characters').isAlphanumeric(),
-    check('email', 'Please include a valid email').isEmail(),
+    check('email', 'Please include a valid email').isEmail().normalizeEmail().trim(),
     check('email').custom(value => {
       const domain = value.split('@')[1]; // Extract domain from email
       return new Promise((resolve, reject) => {
@@ -305,7 +294,7 @@ app.post('/api/new-application',
         });
       });
     }),
-    check("initialPlanChosen", "Server error").not().isEmpty(),
+    check("initialPlanChosen", "Server error").not().isEmpty().trim().escape(),
     body("profileLinks.*.platformName").custom((platform, { req }) => {
       const allowedPlatforms = ["pinterest", "tiktok", "twitter", "youtube"];
       if (!allowedPlatforms.includes(platform)) {
@@ -329,7 +318,7 @@ app.post('/api/new-application',
   
       return true;
 
-    }),
+    }).trim().escape(),
     body("profileLinks.*.profileStatus").custom((status, { req }) => {
       const allowedProfileStatus = ["new","disabled", "active", "pending"]
       if (!allowedProfileStatus .includes(status)) {
@@ -385,56 +374,37 @@ app.post('/api/new-application',
 // @desc    send an email for password change
 // @access  Public
 
-app.post("/api/change-password", async (req, res) => {
+app.post("/api/change-password",  
+[
+  check("email", "Please include a valid email.").isEmail().normalizeEmail()
+],
+  async (req, res) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    res.status(400).json({ errors: errors.array() })
+    return
+  }
 
-  // connect to MailJet
-  const mailjet = new Mailjet({
-    apiKey: process.env.MAILJET_API_KEY,
-    apiSecret: process.env.MAILJET_API_SECRET
-  })
+  const { email } = req.body
 
-  const { name, email, userId } = req.body
+  let user = await User.findOne({ email })
+
+  if (!user) {
+    res.status(200).send({ success: true })
+    return
+  }
+
+  // set up AWS SES
+  const sesClient = new SESClient({
+    region: process.env.AWS_REGION,
+    credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+    }
+  });
 
   try {
-    const result = await mailjet.post('send', { version: 'v3.1' }).request({
-      Messages: [
-        {
-          From: {
-            Email: 'hey@swiftnotion.co',
-            Name: 'SwiftNotion'
-          },
-          To: [
-            {
-              Email: email,
-            },
-          ],
-          TemplateID: 4740696,
-          TemplateLanguage: true,
-          Subject: 'Password Reset',
-          Variables: {
-            USER_ID: userId,
-            NAME: name
-          }
-        },
-      ],
-    });
 
-    /// return jsonwebtoken ///
-    const payload = {
-      user: {
-        id: userId
-      }
-    }
-
-    //// the following will return a token generated for the link for 10 Min
-    const token = jwt.sign(payload, process.env.USER_JWT_SECRET,
-      { expiresIn: 600 },
-      (err, token) => {
-          if (err) throw err
-          return res.json({ token })
-    })
-
-    console.log('Email sent successfully:', result.body);
     res.status(200).send(token)
   } catch (error) {
     console.error('Error sending email:', error);
@@ -450,72 +420,71 @@ app.post("/api/change-password", async (req, res) => {
 app.post(
   '/api/auth',
   [
-      check("email", "Please include a valid email").isEmail(),
-      check("password", "Password is required").not().isEmpty()
+    check("email", "Please include a valid email.").isEmail().normalizeEmail(),
+    check("password", "Password is required.").not().isEmpty().trim().escape()
   ],
   async (req, res) => {
       const errors = validationResult(req)
       if (!errors.isEmpty()) {
-          res.status(400).json({ errors: errors.array() })
-          return
+        res.status(400).json({ errors: errors.array() })
+        return
       }
 
       // destructuring the request
       const { email, password } = req.body
 
       try {
-          let user = await User.findOne({ email })
-          // if the user doesn't exists
-          if (!user) {
-              res.status(401).json({ errors: [{ msg: "Invalid Credentials" }] })
-              return
-          }
 
-          const isMatch = bcrypt.compareSync(password, user.password)
+        let user = await User.findOne({ email })
 
-          if (!isMatch) {
-              // for security reasons (the user doesn't exists or the password is incorrect)
-              // it is good to send the same error message
-              res.status(401).json({ errors: [{ msg: "Invalid Credentials" }] })
-              return
-          }
+        // if the user doesn't exists
+        if (!user) {
+          res.status(401).json({ errors: [{ msg: "Invalid Credentials" }] })
+          return
+        }
 
-          // check if verified
-          if (user.verified) {
-              /// return jsonwebtoken to be used with protected routes ///
-              const payload = {
-                  user: {
-                      // the id is automatically generated by MongoDB
-                      id: user.id
-                  }
-              }
+        if (user.accountStatus !== 'active') {
+          res.status(401).json({ errors: [{ msg: "Invalid Credentials" }] })
+          return
+        }
 
+        const isMatch = bcrypt.compareSync(password, user.password)
 
-              // the following will return a token generated for the user
-              jwt.sign(payload,
-                  process.env.USER_JWT_SECRET,
-                  // ! Do Not Forget To transform it Back To 3600s In Production
-                  { expiresIn: 2630000 },
-                  (err, token) => {
-                      if (err) throw err
-                      const s = {
-                          token: token,
-                          userData: {
-                              id: user.id
-                          }
-                      }
-                      res.status(201).json(s)
-                      return
-                  })
-          } else {
-              res.status(403).json({ errors: [{ msg: "Email Unverified" }] })
-              return
-          }
+        if (!isMatch) {
+          res.status(401).json({ errors: [{ msg: "Invalid Credentials" }] })
+          return
+        }
+
+        // now create a token session of 3-4H
+        const payload = {
+          userId: user.id
+        }
+
+        try {
+          const token = await signToken(payload, process.env.USER_JWT_SECRET, { expiresIn: '3h' });
+          
+          // Set the token as an HttpOnly cookie
+          res.cookie('token', token, {
+              httpOnly: true,
+              // secure: true, // Uncomment this if you're using HTTPS
+              maxAge: 3 * 60 * 60 * 1000 // Cookie expiration in milliseconds
+          });
+  
+          const s = {
+              userId: user.id
+          };
+          res.status(201).json(s);
+          return
+        } catch (err) {
+          // Handle the error appropriately
+          console.error(err);
+          res.status(500).json({ error: 'Server Error' });
+          return
+        }
 
       } catch(err) {
-          console.error(err.message)
-          res.status(500).send("Server Error")
-          return
+        res.status(500).send("Server Error")
+        return
       }
 })
 

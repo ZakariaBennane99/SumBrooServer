@@ -117,7 +117,7 @@ const UserSchema = new Schema({
     },
     accountStatus: {
         type: String,
-        enum: ["new","disabled", "active", "pending"],
+        enum: ["new", "disabled", "active", "pending"],
         // "New": account has just been created.
         // "Disabled": account has been disabled by admin for quality and other issues.(rare case)
         // "Active": account is fully active.
