@@ -9,9 +9,9 @@ const AvAccountsSchema = new Schema({
 
 let AvAc;
 try {
-    AvAc = model('avac');
+    AvAc = model('AvAc');
 } catch {
-    AvAc = model('avac', AvAccountsSchema);
+    AvAc = model('AvAc', AvAccountsSchema);
 }
 
 export default AvAc;

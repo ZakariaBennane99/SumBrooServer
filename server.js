@@ -256,26 +256,31 @@ app.get('/api/verify-checkout', async (req, res) => {
 })
 
 
-// @route   POST api/create-portal-session
+// @route   POST /api/create-portal-session
 // @desc    Allow your users manage their billing info
 // @access  Public
 
-app.post('/create-portal-session', async (req, res) => {
-  // For demonstration purposes, we're using the Checkout session to retrieve the customer ID.
-  // Typically this is stored alongside the authenticated user in your database.
-  const { session_id } = req.body;
-  const checkoutSession = await stripe.checkout.sessions.retrieve(session_id);
+app.post('/api/create-customer-portal-session', async (req, res) => {
 
+  // let user = await User.findOne({  })
+  // you can use the userId to get thier cusomterId
+  const { customerId } = req.body;
+
+  console.log('inside the create portal', customerId)
   // This is the url to which the customer will be redirected when they are done
   // managing their billing with the portal.
-  const returnUrl = YOUR_DOMAIN;
+  const returnUrl = 'http://localhost:3000/settings/billing';
 
   const portalSession = await stripe.billingPortal.sessions.create({
-    customer: checkoutSession.customer,
+    customer: customerId,
     return_url: returnUrl,
   });
 
-  res.redirect(303, portalSession.url);
+  console.log('the portalSession', portalSession)
+
+  res.status(201).json({ url: portalSession.url });
+  return
+
 });
 
 

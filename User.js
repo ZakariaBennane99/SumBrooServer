@@ -83,6 +83,10 @@ const SocialMediaLinkSchema = new Schema({
     niche: {
         type: String
     },
+    lastPublished: {
+        type: Date,
+        default: null
+    },
     audience: {
         type: [String],
         validate: {
