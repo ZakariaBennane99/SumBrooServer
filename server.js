@@ -11,7 +11,8 @@ import bcrypt from 'bcrypt'
 import Stripe from 'stripe';
 import mongoSanitize from 'express-mongo-sanitize';
 import { SESClient, SendTemplatedEmailCommand } from "@aws-sdk/client-ses";
-import dns from 'dns'
+import dns from 'dns';
+import cookieParser from 'cookie-parser'
 
 
 function generateOTP() {
@@ -383,7 +384,7 @@ app.post('/api/new-application',
 // @desc    send an email for password change
 // @access  Public
 
-app.post("/api/change-password",  
+app.post("/api/initiate-password-change",  
 [
   check("email", "Please include a valid email.").isEmail().normalizeEmail()
 ],
@@ -414,14 +415,14 @@ app.post("/api/change-password",
 
   try {
 
-    async function sendEmail(nm, OTP, email) {
+    async function sendEmail(user, OTP) {
       const params = {
           Destination: {
-              ToAddresses: [email]
+              ToAddresses: [user.email]
           },
           Template: 'Password_OTP_Template',
           TemplateData: JSON.stringify({
-            name: capitalize(nm),
+            name: capitalize(user.name),
             OTP: OTP
           }),
           Source: 'no-reply@sumbroo.com'
@@ -446,11 +447,21 @@ app.post("/api/change-password",
   
     // Send the email
     const OTP = generateOTP()
-    sendEmail(user.name, OTP, email).then(result => {
+    sendEmail(user, OTP).then(async result => {
       if (result.status === 200) {
         console.log("Email sent successfully:", result.response);
         // create the token here
-        jwt.sign(payload, process.env.OTP_SECRET, { expiresIn: '10m' });
+        const payload = {
+          otp: OTP,
+          userId: user.id
+        };
+        const token = jwt.sign(payload, process.env.OTP_SECRET, { expiresIn: '15m' });
+        // save the token in OnlyHttp 
+        res.cookie('otpTOKEN', token, {
+          httpOnly: true,
+          maxAge: 15 * 60 * 1000, // 15 minutes in milliseconds
+          // secure: true, // Uncomment this line if you're using HTTPS
+        });
         return res.status(200).json({ ok: 'success' });
       } else {
         console.error("Error sending email:", result.response);
@@ -467,9 +478,110 @@ app.post("/api/change-password",
 })
 
 
+app.post("/api/check-password-otp",  
+[
+  check("otp", "Please include a valid 7-digit number.")
+    .isInt({ min: 1000000, max: 9999999 })
+    .isLength({ min: 7, max: 7 })
+    .toInt()
+], cookieParser(), 
+  async (req, res) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      res.status(400).json({ errors: errors.array() })
+      return
+    }
+
+    const { otp } = req.body;
+
+    const { otpTOKEN } = req.cookies;
+
+    if (!otpTOKEN) {
+      return res.status(500).send('Server error');
+    }
+
+    jwt.verify(otpTOKEN, process.env.OTP_SECRET, (err, decoded) => {
+
+      if (err) {
+        // If the token is not valid or expired, wipe out the cookie
+        res.clearCookie('token');
+        return res.status(401).send('Expired OTP');
+      }
+
+      if (decoded.otp === otp) {
+        return res.status(201).send({ success: true });
+      }
+      
+      return res.status(401).send('Invalid OTP');
+
+    });
+
+})
+
+
+app.post('/api/change-password',  
+[
+  check('pass')
+    .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long')
+    .matches(/[a-z]/).withMessage('Password must contain at least one lowercase letter')
+    .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
+    .matches(/[0-9]/).withMessage('Password must contain at least one number')
+    .matches(/[!@#$%^&*]/).withMessage('Password must contain at least one special character (!@#$%^&*)')
+    .trim().escape()
+], cookieParser(), async (req, res) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() })
+    }
+
+    try {
+
+      const { otpTOKEN } = req.cookies;
+      const { pass } = req.body;
+
+      if (!otpTOKEN) {
+        return res.status(500).send('Server error');
+      }
+  
+      jwt.verify(otpTOKEN, process.env.OTP_SECRET, async (err, decoded) => {
+  
+        if (err) {
+          // If the token is not valid or expired, wipe out the cookie
+          res.clearCookie('token');
+          return res.status(401).send('Expired OTP');
+        }
+  
+        let user = await User.findOne({ _id: decoded.user })
+
+        if (!user) {
+          return res.status(500).send('Server error');
+        }
+
+        /// before saving the user to the DB, encrypt the password with bcrypt ///
+        user.password = await bcrypt.hash(pass, await bcrypt.genSalt(saltRounds))
+        /// now save the user  ///
+        await user.save()
+        
+        return res.status(201).send({ success: true });
+  
+      });
+      
+
+    } catch (err) {
+      console.error(err.message); // Log the error for debugging purposes.
+      res.status(500).send('Server error');
+      return
+    }
+
+})
+
+
+
+
 // @route   POST /api/auth
 // @desc    authenticate user
 // @access  Public
+
 app.post(
   '/api/auth',
   [
