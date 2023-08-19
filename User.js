@@ -130,6 +130,10 @@ const UserSchema = new Schema({
     initialPlanChosen: {
         type: String
     },
+    onboardingStep: {
+        type: Number,
+        default: 0
+    },
     applicationDate: {
         type: String, 
         required: true

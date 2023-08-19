@@ -9,7 +9,6 @@ import bodyParser from 'body-parser';
 import connectDB from './db.js';
 import bcrypt from 'bcrypt'
 import Stripe from 'stripe';
-import Mailjet from 'node-mailjet';
 import mongoSanitize from 'express-mongo-sanitize';
 import dns from 'dns'
 
@@ -35,11 +34,15 @@ app.use(bodyParser.json({ limit: '150mb', verify: (req, res, buf) => {
   }
 }}));
 
-app.use(bodyParser.urlencoded({ limit: '150mb', extended: true, verify: (req, res, buf) => {
-  if (req.originalUrl.startsWith('/webhook')) {
-      req.rawBody = buf.toString();
+app.use(bodyParser.json({
+  limit: '150mb',
+  verify: (req, res, buf) => {
+    if (req.originalUrl.startsWith('/api/webhook')) {
+      req.rawBody = buf;
+    }
   }
-}}));
+}));
+
 
 // connecting the DB
 connectDB()
@@ -53,11 +56,11 @@ app.use(helmet())
 
 app.post('/api/create-checkout-session', async (req, res) => {
 
-  const { userId, token } = req.body
+  const { userId, tk } = req.body
 
   const sanitizedUserId = mongoSanitize.sanitize(userId);
 
-  let user = User.findOne({ _id: sanitizedUserId })
+  let user = await User.findOne({ _id: sanitizedUserId })
 
   const paymentPlan = user.initialPlanChosen
 
@@ -74,9 +77,9 @@ app.post('/api/create-checkout-session', async (req, res) => {
           quantity: 1
         },
       ],
-      success_url: `http://localhost:3000/onboarding/step-2?userId=${userId}`,
+      success_url: `http://localhost:3000/settings/linked-accounts?grub=${tk}`,
       // take him back to the onboarding page
-      cancel_url: 'http://localhost:3000/onboarding/' + token,
+      cancel_url: 'http://localhost:3000/sign-in',
       metadata: {
         userId: userId.toString()
       }
@@ -99,25 +102,38 @@ const endpointSecret = "whsec_7db5efb5afb9156ffd05dbf44beebea183b0c956aa68917077
 
 app.post('/api/webhook', async (request, response) => {
 
-  const sig = request.headers['stripe-signature'];
+  console.log('Its running')
+
+  const signature = request.headers['stripe-signature'];
 
   let event;
 
+  console.log(request);
+
   try {
-    event = stripe.webhooks.constructEvent(request.rawBody, sig, endpointSecret);
+    event = stripe.webhooks.constructEvent(
+      request.rawBody,
+      signature,
+      endpointSecret
+    );
   } catch (err) {
-    response.status(400).send(`Webhook Error: ${err.message}`);
-    return;
+    console.log(`⚠️  Webhook signature verification failed.`, err.message);
+    return response.sendStatus(400);
   }
 
+  console.log('Just Before the event')
   if (event.type === 'checkout.session.completed') {
 
+    console.log('Running inside the webhook')
+
     const session = event.data.object;
+    const customerId = session.customer; 
     const userIdFromMetadata = session.metadata.userId;
 
     /// update the user onboarding ste ///
     let user = User.findOne({ userIdFromMetadata })
-    user.onboardingStep = 1
+    user.onboardingStep = 2
+    user.stripeId = customerId
     await user.save()
 
     return res.json({ received: true });
@@ -126,25 +142,62 @@ app.post('/api/webhook', async (request, response) => {
 
 });
 
-app.post('/api/set-up-password', async (req, res) => {
+app.post('/api/set-up-password',  
+[
+  check('pass')
+    .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long')
+    .matches(/[a-z]/).withMessage('Password must contain at least one lowercase letter')
+    .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
+    .matches(/[0-9]/).withMessage('Password must contain at least one number')
+    .matches(/[!@#$%^&*]/).withMessage('Password must contain at least one special character (!@#$%^&*)')
+    .trim()
+], async (req, res) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() })
+    }
 
-  let user = await User.findOne({ email })
+    try {
 
-  if (user) {
-    res.status(401).json({ errors: [{ msg: "User already exists" }] })
-  }
+      const { userId, pass } = req.body
 
-  /// creating the user ///
-  user = new User({
-      email: email,
-      password: password
-  })
+      const sanitizedUserId = mongoSanitize.sanitize(userId)
 
-  /// before saving the user to the DB, encrypt the password with bcrypt ///
-  user.password = await bcrypt.hash(password, await bcrypt.genSalt(saltRounds))
+      let user = await User.findOne({ _id: sanitizedUserId  })
+      if (!user || user.onboardingStep !== 0) {
+        res.status(500).json({ errors: 'Server error' })
+        return
+      }
+    
+      /// before saving the user to the DB, encrypt the password with bcrypt ///
+      user.password = await bcrypt.hash(pass, await bcrypt.genSalt(saltRounds))
+      // update the user onboarding step
+      user.onboardingStep = 1
+      /// now save the user and the profile to the DB ///
+      await user.save()
 
-  /// now save the user and the profile to the DB ///
-  await user.save()
+      // now create a token for the payment
+      const payload = {
+        userId: userId,
+        action: 'payment'
+      }
+    
+      jwt.sign(payload,
+        process.env.JWT_SECRET,
+        { expiresIn: '1h' },
+        (err, token) => {
+            if (err) throw err;
+    
+            res.status(201).json({ success: true, token: token });
+            return;
+        });
+
+    } catch (err) {
+      console.error(err.message); // Log the error for debugging purposes.
+      res.status(500).send('Server error');
+      return
+    }
+
 })
 
 app.get('/api/verify-checkout', async (req, res) => {
