@@ -633,7 +633,8 @@ app.post(
 
         // now create a token session of 3-4H
         const payload = {
-          userId: user.id
+          userId: user.id, 
+          type: 'sessionToken'
         }
 
         try {
@@ -646,10 +647,9 @@ app.post(
               maxAge: 3 * 60 * 60 * 1000 // Cookie expiration in milliseconds
           });
   
-          const s = {
-            userId: user.id
-          };
-          res.status(201).json(s);
+          console.log('after setting the token')
+
+          res.status(201).json({ success: true });
           return
         } catch (err) {
           // Handle the error appropriately
