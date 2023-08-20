@@ -33,7 +33,10 @@ dotenv.config();
 const app = express()
 
 // for cors purpose
-app.use(cors())
+app.use(cors({
+  origin: 'http://localhost:3000', // your frontend domain
+  credentials: true
+}));
 
 // Stripe Config
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
@@ -386,7 +389,7 @@ app.post('/api/new-application',
 
 app.post("/api/initiate-password-change",  
 [
-  check("email", "Please include a valid email.").isEmail().normalizeEmail()
+  check("email", "Please include a valid email").isEmail().normalizeEmail()
 ],
   async (req, res) => {
   const errors = validationResult(req)
@@ -408,8 +411,8 @@ app.post("/api/initiate-password-change",
   const sesClient = new SESClient({
     region: process.env.AWS_REGION,
     credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
     }
   });
 
@@ -465,7 +468,7 @@ app.post("/api/initiate-password-change",
         return res.status(200).json({ ok: 'success' });
       } else {
         console.error("Error sending email:", result.response);
-        return res.status(400).json({ error: err });
+        return res.status(500).json({ error: "Server" });
       }
     }); 
 
@@ -496,23 +499,29 @@ app.post("/api/check-password-otp",
 
     const { otpTOKEN } = req.cookies;
 
+    console.log('The otpTOKEN', otpTOKEN)
+
     if (!otpTOKEN) {
       return res.status(500).send('Server error');
     }
 
+    console.log('After checking if the OTP exists.')
+
     jwt.verify(otpTOKEN, process.env.OTP_SECRET, (err, decoded) => {
 
       if (err) {
+        console.log('the OTP is wrong')
         // If the token is not valid or expired, wipe out the cookie
         res.clearCookie('token');
         return res.status(401).send('Expired OTP');
       }
 
+      console.log('this is the decoded OTP', decoded.otp)
       if (decoded.otp === otp) {
         return res.status(201).send({ success: true });
       }
       
-      return res.status(401).send('Invalid OTP');
+      return res.status(400).send('Invalid OTP');
 
     });
 
@@ -539,6 +548,8 @@ app.post('/api/change-password',
       const { otpTOKEN } = req.cookies;
       const { pass } = req.body;
 
+      console.log(otpTOKEN, pass)
+
       if (!otpTOKEN) {
         return res.status(500).send('Server error');
       }
@@ -551,7 +562,7 @@ app.post('/api/change-password',
           return res.status(401).send('Expired OTP');
         }
   
-        let user = await User.findOne({ _id: decoded.user })
+        let user = await User.findOne({ _id: decoded.userId })
 
         if (!user) {
           return res.status(500).send('Server error');
@@ -585,8 +596,8 @@ app.post('/api/change-password',
 app.post(
   '/api/auth',
   [
-    check("email", "Please include a valid email.").isEmail().normalizeEmail(),
-    check("password", "Password is required.").not().isEmpty().trim().escape()
+    check("email", "Please include a valid email").isEmail().normalizeEmail(),
+    check("password", "Password is required").not().isEmpty().trim().escape()
   ],
   async (req, res) => {
       const errors = validationResult(req)
@@ -626,7 +637,7 @@ app.post(
         }
 
         try {
-          const token = await signToken(payload, process.env.USER_JWT_SECRET, { expiresIn: '3h' });
+          const token = jwt.sign(payload, process.env.USER_JWT_SECRET, { expiresIn: '3h' });
           
           // Set the token as an HttpOnly cookie
           res.cookie('token', token, {
@@ -636,7 +647,7 @@ app.post(
           });
   
           const s = {
-              userId: user.id
+            userId: user.id
           };
           res.status(201).json(s);
           return
@@ -658,7 +669,7 @@ app.post(
 // @desc    Check if the user's token still valid
 // @access  Public
 
-app.post('/api/checkToken', async (req, res) => {
+app.post('/api/check-token', async (req, res) => {
       // get the token from the header
       const token = req.header("x-auth-token")
 
