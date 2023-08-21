@@ -116,15 +116,9 @@ const endpointSecret = "whsec_7db5efb5afb9156ffd05dbf44beebea183b0c956aa68917077
 
 app.post('/api/webhook', async (request, response) => {
 
-  console.log('Its running')
-
   const signature = request.headers['stripe-signature'];
 
-  console.log("Stripe Signature:", signature);
-
   let event;
-
-  console.log(request.rawBody);
 
   try {
     event = stripe.webhooks.constructEvent(
@@ -137,7 +131,6 @@ app.post('/api/webhook', async (request, response) => {
     return response.sendStatus(400);
   }
 
-  console.log('Just Before the event')
   if (event.type === 'checkout.session.completed') {
 
     const session = event.data.object;
@@ -268,7 +261,6 @@ app.post('/api/create-customer-portal-session', async (req, res) => {
   // you can use the userId to get thier cusomterId
   const { customerId } = req.body;
 
-  console.log('inside the create portal', customerId)
   // This is the url to which the customer will be redirected when they are done
   // managing their billing with the portal.
   const returnUrl = 'http://localhost:3000/settings/billing';
@@ -277,8 +269,6 @@ app.post('/api/create-customer-portal-session', async (req, res) => {
     customer: customerId,
     return_url: returnUrl,
   });
-
-  console.log('the portalSession', portalSession)
 
   res.status(201).json({ url: portalSession.url });
   return
