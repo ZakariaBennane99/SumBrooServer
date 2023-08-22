@@ -80,6 +80,9 @@ const SocialMediaLinkSchema = new Schema({
         // If rejected, we remove the profile and send him a message on why 
         // we rejected him and that when he fulfills the reqs, he can a send a profile linking req
     }, 
+    pricePlans: {
+        type: [String]
+    },
     niche: {
         type: String
     },
