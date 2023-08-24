@@ -43,7 +43,6 @@ const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
 app.use(bodyParser.json({
   verify: (req, res, buf) => {
-    console.log("Inside verify function");
     req.rawBody = buf;
   }
 }));
@@ -51,7 +50,6 @@ app.use(bodyParser.json({
 app.use(bodyParser.urlencoded({
   extended: true,
   verify: (req, res, buf) => {
-    console.log("Inside verify function");
     req.rawBody = buf;
   }
 }));
@@ -140,9 +138,15 @@ app.post('/api/webhook', async (request, response) => {
     /// update the user onboarding ste ///
     let user = await User.findOne({ _id: userIdFromMetadata })
     if (!user) return response.status(400);
-    user.onboardingStep = 2
-    user.stripeId = customerId
-    await user.save()
+    user.onboardingStep = 2;
+    user.accountStatus = 'active';
+    user.socialMediaLinks.forEach(link => {
+      if (link.profileStatus === 'pending') {
+        link.profileStatus = 'active';
+      }
+    })
+    user.stripeId = customerId;
+    await user.save();
 
     return response.json({ received: true });
 
@@ -638,14 +642,12 @@ app.post(
           
           // Set the token as an HttpOnly cookie
           res.cookie('token', token, {
-              httpOnly: true,
-              // secure: true, // Uncomment this if you're using HTTPS
-              maxAge: 3 * 60 * 60 * 1000 // Cookie expiration in milliseconds
+            httpOnly: true,
+            // secure: true, // Uncomment this if you're using HTTPS
+            maxAge: 3 * 60 * 60 * 1000 // Cookie expiration in milliseconds
           });
-  
-          console.log('after setting the token')
 
-          res.status(201).json({ success: true });
+          res.status(201).json({ status: user.accountStatus });
           return
         } catch (err) {
           // Handle the error appropriately
@@ -666,8 +668,8 @@ app.post(
 // @access  Public
 
 app.post('/api/check-token', async (req, res) => {
-      // get the token from the header
-      const token = req.header("x-auth-token")
+  // get the token from the header
+  const token = req.header("x-auth-token")
 
       try {
           // check if no token
@@ -694,6 +696,30 @@ app.post('/api/check-token', async (req, res) => {
           return
       }
 })
+
+
+
+// @route   POST /api/sign-out-user
+// @desc    Sign out user
+// @access  Private
+
+app.post('/api/sign-out-user', async (req, res) => {
+  console.log('Inside the sign Out ')
+  try {
+    res.cookie('token', '', {
+      httpOnly: true,
+      // secure: true, // Uncomment this if you're using HTTPS
+      maxAge: 0 // This will immediately expire the cookie
+    });
+
+    return res.status(200).send({ success: true });
+
+  } catch (err) {
+    console.error('Error signing out:', err);
+    return res.status(500).send({ error: true });
+  }
+});
+
 
 
 
