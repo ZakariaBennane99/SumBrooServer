@@ -794,8 +794,20 @@ app.post('/api/update-email',
 
 app.post('/api/update-password',
   [
-    check("newPass", "Please include a valid name").not().isEmpty().trim().escape()
-  ], cookieParser(), async (req, res) => {
+    check('newPass')
+    .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long')
+    .matches(/[a-z]/).withMessage('Password must contain at least one lowercase letter')
+    .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
+    .matches(/[0-9]/).withMessage('Password must contain at least one number')
+    .matches(/[!@#$%^&*]/).withMessage('Password must contain at least one special character (!@#$%^&*)')
+    .trim().escape()
+  ], cookieParser(),async (req, res) => {
+    
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() })
+    } 
+
   try {
 
     const { newPass } = req.body
