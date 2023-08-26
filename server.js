@@ -720,6 +720,107 @@ app.post('/api/sign-out-user', async (req, res) => {
   }
 });
 
+// @route   POST /api/update-name
+// @desc    Update userName
+// @access  Private
+
+app.post('/api/update-name',
+  [
+    check("name", "Please include a valid name").not().isEmpty().trim().escape()
+  ], cookieParser(), async (req, res) => {
+  try {
+
+    const { name } = req.body
+
+    const { token } = req.cookies;
+
+    const decoded = jwt.verify(token, process.env.USER_JWT_SECRET);
+
+    if (decoded.type !== 'sessionToken') {
+      return res.status(500).send({ error: true });
+    }
+
+    // now update the user's name
+    let user = User.findOne({ _id: decoded.userId })
+
+    user.name = name;
+    await user.save();
+
+    return res.status(200).send({ success: true });
+
+  } catch (err) {
+    return res.status(500).send({ error: true });
+  }
+});
+
+
+// @route   POST /api/update-email
+// @desc    Update user email
+// @access  Private
+
+app.post('/api/update-email',
+  [
+    check("email", "Please include a valid email").isEmail().normalizeEmail(),
+  ], cookieParser(), async (req, res) => {
+  try {
+
+    const { email } = req.body
+
+    const { token } = req.cookies;
+
+    const decoded = jwt.verify(token, process.env.USER_JWT_SECRET);
+
+    if (decoded.type !== 'sessionToken') {
+      return res.status(500).send({ error: true });
+    }
+
+    // now update the user's email
+    let user = User.findOne({ _id: decoded.userId })
+
+    user.email = email;
+    await user.save();
+
+    return res.status(200).send({ success: true });
+
+  } catch (err) {
+    return res.status(500).send({ error: true });
+  }
+});
+
+
+// @route   POST /api/update-password
+// @desc    Update user password
+// @access  Private
+
+app.post('/api/update-password',
+  [
+    check("newPass", "Please include a valid name").not().isEmpty().trim().escape()
+  ], cookieParser(), async (req, res) => {
+  try {
+
+    const { newPass } = req.body
+
+    const { token } = req.cookies;
+
+    const decoded = jwt.verify(token, process.env.USER_JWT_SECRET);
+
+    if (decoded.type !== 'sessionToken') {
+      return res.status(500).send({ error: true });
+    }
+
+    // now update the user's name
+    let user = User.findOne({ _id: decoded.userId })
+
+    /// before saving the user to the DB, encrypt the password with bcrypt ///
+    user.password = await bcrypt.hash(newPass, await bcrypt.genSalt(saltRounds))
+    await user.save();
+
+    return res.status(200).send({ success: true });
+
+  } catch (err) {
+    return res.status(500).send({ error: true });
+  }
+});
 
 
 
