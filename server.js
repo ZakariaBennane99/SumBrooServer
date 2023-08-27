@@ -762,6 +762,12 @@ app.post('/api/update-email',
   [
     check("email", "Please include a valid email").isEmail().normalizeEmail(),
   ], cookieParser(), async (req, res) => {
+
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() })
+  } 
+
   try {
 
     const { email } = req.body
@@ -802,7 +808,7 @@ app.post('/api/update-password',
     .matches(/[!@#$%^&*]/).withMessage('Password must contain at least one special character (!@#$%^&*)')
     .trim().escape()
   ], cookieParser(),async (req, res) => {
-    
+
     const errors = validationResult(req)
     if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() })
