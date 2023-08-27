@@ -742,7 +742,9 @@ app.post('/api/update-name',
 
   try {
 
-    const { name } = req.body
+    const { name } = req.body;
+
+    console.log(name)
 
     const { token } = req.cookies;
 
