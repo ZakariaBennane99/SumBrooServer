@@ -647,7 +647,10 @@ app.post(
             maxAge: 3 * 60 * 60 * 1000 // Cookie expiration in milliseconds
           });
 
-          res.status(201).json({ status: user.accountStatus });
+          res.status(201).json({ userData: {
+            name: user.name,
+            email: user.email
+          } });
           return
         } catch (err) {
           // Handle the error appropriately
@@ -728,6 +731,12 @@ app.post('/api/update-name',
   [
     check("name", "Please include a valid name").not().isEmpty().trim().escape()
   ], cookieParser(), async (req, res) => {
+
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() })
+  } 
+
   try {
 
     const { name } = req.body
@@ -765,7 +774,7 @@ app.post('/api/update-email',
 
   const errors = validationResult(req)
   if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() })
+    return res.status(400).json({ errors: errors.array() })
   } 
 
   try {
