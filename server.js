@@ -728,9 +728,13 @@ app.post('/api/sign-out-user', async (req, res) => {
 // @access  Private
 
 app.post('/api/update-name',
-  [
-    check("name", "Please include a valid name").not().isEmpty().trim().escape()
-  ], cookieParser(), async (req, res) => {
+[
+  check("name", "Username is required.")
+    .not().isEmpty()
+    .isLength({ min: 6 }).withMessage('Name must be at least 6 characters long')
+    .trim()
+    .escape()
+], cookieParser(), async (req, res) => {
 
   const errors = validationResult(req)
   if (!errors.isEmpty()) {
