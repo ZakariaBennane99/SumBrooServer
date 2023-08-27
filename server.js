@@ -707,7 +707,6 @@ app.post('/api/check-token', async (req, res) => {
 // @access  Private
 
 app.post('/api/sign-out-user', async (req, res) => {
-  console.log('Inside the sign Out ')
   try {
     res.cookie('token', '', {
       httpOnly: true,
@@ -744,8 +743,6 @@ app.post('/api/update-name',
 
     const { name } = req.body;
 
-    console.log(name)
-
     const { token } = req.cookies;
 
     const decoded = jwt.verify(token, process.env.USER_JWT_SECRET);
@@ -757,7 +754,7 @@ app.post('/api/update-name',
     const userId = decoded.userId
 
     // now update the user's name
-    let user = User.findOne({ userId })
+    let user = await User.findOne({ _id: userId });
 
     user.name = name;
     await user.save();
@@ -796,8 +793,10 @@ app.post('/api/update-email',
       return res.status(500).send({ error: true });
     }
 
+    const userId = decoded.userId
+
     // now update the user's email
-    let user = User.findOne({ _id: decoded.userId })
+    let user = await User.findOne({ _id: userId });
 
     user.email = email;
     await user.save();
@@ -842,8 +841,10 @@ app.post('/api/update-password',
       return res.status(500).send({ error: true });
     }
 
-    // now update the user's name
-    let user = User.findOne({ _id: decoded.userId })
+    const userId = decoded.userId
+
+    // now update the user's password
+    let user = await User.findOne({ _id: userId });
 
     /// before saving the user to the DB, encrypt the password with bcrypt ///
     user.password = await bcrypt.hash(newPass, await bcrypt.genSalt(saltRounds))
