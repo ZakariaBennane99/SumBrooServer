@@ -755,7 +755,7 @@ app.post('/api/update-name',
     user.name = name;
     await user.save();
 
-    return res.status(200).send({ success: true });
+    return res.status(200).send({ name: name });
 
   } catch (err) {
     return res.status(500).send({ error: true });
@@ -795,7 +795,7 @@ app.post('/api/update-email',
     user.email = email;
     await user.save();
 
-    return res.status(200).send({ success: true });
+    return res.status(200).send({ email: email });
 
   } catch (err) {
     return res.status(500).send({ error: true });
