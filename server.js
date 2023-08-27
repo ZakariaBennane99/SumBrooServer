@@ -754,8 +754,10 @@ app.post('/api/update-name',
       return res.status(500).send({ error: true });
     }
 
+    const userId = decoded.userId
+
     // now update the user's name
-    let user = User.findOne({ _id: decoded.userId })
+    let user = User.findOne({ userId })
 
     user.name = name;
     await user.save();
