@@ -729,9 +729,8 @@ app.post('/api/sign-out-user', async (req, res) => {
 
 app.post('/api/update-name',
 [
-  check("name", "Username is required.")
-    .not().isEmpty()
-    .isLength({ min: 6 }).withMessage('Name must be at least 6 characters long')
+  check("name")
+    .isLength({ min: 6 }).withMessage('Name must be at least 6 characters long.')
     .trim()
     .escape()
 ], cookieParser(), async (req, res) => {
