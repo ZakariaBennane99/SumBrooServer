@@ -71,7 +71,7 @@ const SocialMediaLinkSchema = new Schema({
     }, 
     profileStatus: {
         type: String,
-        enum: ["new", "pendingSubscriptionPayment", "active", "canceledSubscriptionPayment"],
+        enum: ["new", "pending", "active", "canceled"],
         // "New": profile has just been linked.
         // "Disabled": profile disabled by admin for quality and other issues.(rare case)
         // "Active": profile is fully active. 
