@@ -71,13 +71,11 @@ const SocialMediaLinkSchema = new Schema({
     }, 
     profileStatus: {
         type: String,
-        enum: ["new", "pending", "active", "canceled"],
+        enum: ["new", "pendingPay", "pendingAuth", "active", "canceled"],
         // "New": profile has just been linked.
         // "Disabled": profile disabled by admin for quality and other issues.(rare case)
         // "Active": profile is fully active. 
-        // "Pending": awaiting user upgrading his plan. You'll have to send an email with
-        // a link to the Stripe management page in which he has to upgrade the plan. The email
-        // will expires after 24H. Otherwise, he can find the link above the platform in 
+        // "Pending": awaiting user payment
         // Settings > Linked Accounts, or he/she can click on the manage billing and pay from there. 
         required: true
         // If rejected, we remove the profile and send him a message on why 
