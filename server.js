@@ -333,7 +333,7 @@ app.post('/api/new-application',
     }).trim().escape(),
     body("profileLinks.*.profileStatus").custom((status, { req }) => {
       const allowedProfileStatus = ["inReview", "pendingPay", "pendingAuth", "active", "canceled"]
-      if (!allowedProfileStatus .includes(status)) {
+      if (!allowedProfileStatus.includes(status)) {
         throw new Error(`Server error`);
       }
       return true;
@@ -342,11 +342,11 @@ app.post('/api/new-application',
   async (req, res) => {
       const errors = validationResult(req)
       if (!errors.isEmpty()) {
-          return res.status(400).json({ errors: errors.array() })
+        return res.status(400).json({ errors: errors.array() })
       }
 
       try {
-        
+
         const { applicationDate, name, email, profileLinks, initialPlanChosen } = req.body;
     
         let user = await User.findOne({ email });
