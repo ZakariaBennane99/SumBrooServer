@@ -332,7 +332,7 @@ app.post('/api/new-application',
 
     }).trim().escape(),
     body("profileLinks.*.profileStatus").custom((status, { req }) => {
-      const allowedProfileStatus = ["new","disabled", "active", "pending"]
+      const allowedProfileStatus = ["inReview", "pendingPay", "pendingAuth", "active", "canceled"]
       if (!allowedProfileStatus .includes(status)) {
         throw new Error(`Server error`);
       }
@@ -346,25 +346,24 @@ app.post('/api/new-application',
       }
 
       try {
+        
         const { applicationDate, name, email, profileLinks, initialPlanChosen } = req.body;
     
         let user = await User.findOne({ email });
     
         if (user) {
-            return res.status(401).json({ errors: [{ msg: "User already exists" }] });
+          return res.status(401).json({ errors: [{ msg: "User already exists" }] });
         }
-    
-        console.log(typeof applicationDate, applicationDate)
-
+  
         // Create a new user based on the User model
         user = new User({
-            name,
-            email,
-            applicationDate: applicationDate,
-            socialMediaLinks: profileLinks,
-            initialPlanChosen: initialPlanChosen,
-            // add the account status
-            accountStatus: 'new'
+          name,
+          email,
+          applicationDate: applicationDate,
+          socialMediaLinks: profileLinks,
+          initialPlanChosen: initialPlanChosen,
+          // add the account status
+          accountStatus: 'inReview'
         });
     
         // Save the user to the database

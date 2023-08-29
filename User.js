@@ -71,8 +71,9 @@ const SocialMediaLinkSchema = new Schema({
     }, 
     profileStatus: {
         type: String,
-        enum: ["new", "pendingPay", "pendingAuth", "active", "canceled"],
+        enum: ["inReview", "pendingPay", "pendingAuth", "active", "canceled"],
         // "New": profile is available to be applied for.
+        // "InReview": profile is in review.
         // "Disabled": profile disabled by admin for quality and other issues.(rare case)
         // "Active": profile is fully active. 
         // "Pending": awaiting user payment
@@ -121,8 +122,8 @@ const UserSchema = new Schema({
     },
     accountStatus: {
         type: String,
-        enum: ["new", "disabled", "active", "pending"],
-        // "New": account has just been created.
+        enum: ["inReview", "disabled", "active", "pending"],
+        // "inReview": account is being reviewed.
         // "Disabled": account has been disabled by admin for quality and other issues.(rare case)
         // "Active": account is fully active.
         // "Pending": awaiting user payment/onboarding before activation. You'll have to send an email
