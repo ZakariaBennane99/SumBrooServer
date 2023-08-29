@@ -141,8 +141,8 @@ app.post('/api/webhook', async (request, response) => {
     user.onboardingStep = 2;
     user.accountStatus = 'active';
     user.socialMediaLinks.forEach(link => {
-      if (link.profileStatus === 'pending') {
-        link.profileStatus = 'active';
+      if (link.profileStatus === 'pendingPay') {
+        link.profileStatus = 'pendingAuth';
       }
     })
     user.stripeId = customerId;
