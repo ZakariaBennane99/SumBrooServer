@@ -118,7 +118,8 @@ const SocialMediaLinkSchema = new Schema({
     },
     refreshTokenExpirationDate: {
         type: Date
-    } 
+    },
+    posts: [PostSchema]
 });
 
 const UserSchema = new Schema({
@@ -162,8 +163,7 @@ const UserSchema = new Schema({
         type: String,
         unique: true
     },
-    socialMediaLinks: [SocialMediaLinkSchema],
-    posts: [PostSchema]
+    socialMediaLinks: [SocialMediaLinkSchema]
 });
 
 const User = model("user", UserSchema);
