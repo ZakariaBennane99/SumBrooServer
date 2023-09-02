@@ -821,7 +821,7 @@ app.post('/api/update-password',
     .matches(/[0-9]/).withMessage('Password must contain at least one number')
     .matches(/[!@#$%^&*]/).withMessage('Password must contain at least one special character (!@#$%^&*)')
     .trim().escape()
-  ], cookieParser(),async (req, res) => {
+  ], cookieParser(), async (req, res) => {
 
     const errors = validationResult(req)
     if (!errors.isEmpty()) {
@@ -855,6 +855,52 @@ app.post('/api/update-password',
     return res.status(500).send({ error: true });
   }
 });
+
+
+// @route   POST /api/handle-post-submit/pinterest
+// @desc    handle post submit for Pinterest
+// @access  Private
+
+app.post('/api/handle-post-submit/pinterest',
+[
+  check("name")
+    .isLength({ min: 6 }).withMessage('Name must be at least 6 characters long.')
+    .trim()
+    .escape()
+], cookieParser(), async (req, res) => {
+
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() })
+  } 
+
+  try {
+
+    const { name } = req.body;
+
+    const { token } = req.cookies;
+
+    const decoded = jwt.verify(token, process.env.USER_JWT_SECRET);
+
+    if (decoded.type !== 'sessionToken') {
+      return res.status(500).send({ error: true });
+    }
+
+    const userId = decoded.userId
+
+    // now update the user's name
+    let user = await User.findOne({ _id: userId });
+
+    user.name = name;
+    await user.save();
+
+    return res.status(200).send({ name: name });
+
+  } catch (err) {
+    return res.status(500).send({ error: true });
+  }
+});
+
 
 
 
