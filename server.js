@@ -13,7 +13,19 @@ import mongoSanitize from 'express-mongo-sanitize';
 import { SESClient, SendTemplatedEmailCommand } from "@aws-sdk/client-ses";
 import dns from 'dns';
 import cookieParser from 'cookie-parser';
-import AWS from 'aws-sdk'
+// New AWS SDK v3 imports
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+
+// AWS Config
+const s3Client = new S3Client({
+    region: process.env.AWS_REGION,
+    credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+    },
+});
+
 
 
 function generateOTP() {
@@ -38,13 +50,6 @@ app.use(cors({
   origin: 'http://localhost:3000', // your frontend domain
   credentials: true
 }));
-
-// AWS Config
-AWS.config.update({
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  region: process.env.AWS_REGION
-});
 
 // Stripe Config
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
@@ -925,39 +930,37 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware,
 });
 
 
+
 // @route   POST /api/get-aws-preSignedUrl
 // @desc    Generate a preSignedUrl for direct user upload
 // @access  Private
 
-app.post('/api/get-aws-preSignedUrl', verifyTokenMiddleware, (req, res) => {
+app.post('/api/get-aws-preSignedUrl', verifyTokenMiddleware, async (req, res) => {
 
-  const s3 = new AWS.S3();
+    const { platform, contentType, requestId } = req.body;
 
-  const { platofrm } = req.body;
+    const command = new PutObjectCommand({
+        Bucket: 'sumbroo-media-upload',
+        Key: platform + '-' + req.userId,
+        ContentType: contentType,
+        Metadata: {
+          'x-amz-meta-request-id': requestId
+        }
+    });
 
-  const params = {
-    Bucket: 'sumbroo-media-upload',
-    Key: platofrm + '-' + req.userId, // cuz this is temporary and once reviewed it get deleted 
-    Expires: 60 * 2, // URL expires in 2 minutes
-    ContentType: 'binary/octet-stream'
-  };
 
-  s3.getSignedUrl('putObject', params, (err, url) => {
-
-    if (err) {
-      console.log('Error getting presigned URL', err);
-      res.status(500).json({ error: 'Error getting presigned URL' });
-      return;
+    try {
+        const url = await getSignedUrl(s3Client, command, { expiresIn: 60 * 2 });
+        console.log("Signed URL: ", url);
+        return res.status(201).json({ url });
+    } catch (err) {
+        console.log('Error getting presigned URL', err);
+        res.status(500).json({ error: 'Error getting presigned URL' });
     }
-
-    return res.status(201).json({ url });
-
-  });
 
 });
 
-
-// @route   GEt /api/lambda-notification
+// @route   GET /api/lambda-notification
 // @desc    Listen for Lambda's updates
 // @access  Public
 
@@ -965,28 +968,23 @@ let clients = {};
 
 app.get('/api/lambda-notification/:requestId', (req, res) => {
     const requestId = req.params.requestId;
-
-    // Set headers for SSE
+    console.log('The front-end initiated the SSE');
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
-
-    // Store the client's response object so we can use it later when the Lambda function completes
     clients[requestId] = res;
 });
 
 app.post('/api/lambda-completed', (req, res) => {
+    console.log('the Lambda completed is hit');
     const requestId = req.body.requestId;
     const result = req.body.result;
-
-    // If there's a frontend client waiting for this `requestId`, send them the result
     const clientRes = clients[requestId];
     if (clientRes) {
-      clientRes.write(`data: ${JSON.stringify(result)}\n\n`);  // send the result to the frontend client
-      clientRes.end();
-      delete clients[requestId];
+        clientRes.write(`data: ${JSON.stringify(result)}\n\n`);
+        clientRes.end();
+        delete clients[requestId];
     }
-
     res.send({ status: 'ok' });
 });
 
