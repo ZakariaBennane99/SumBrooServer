@@ -12,7 +12,8 @@ import Stripe from 'stripe';
 import mongoSanitize from 'express-mongo-sanitize';
 import { SESClient, SendTemplatedEmailCommand } from "@aws-sdk/client-ses";
 import dns from 'dns';
-import cookieParser from 'cookie-parser'
+import cookieParser from 'cookie-parser';
+import AWS from 'aws-sdk'
 
 
 function generateOTP() {
@@ -38,6 +39,13 @@ app.use(cors({
   credentials: true
 }));
 
+// AWS Config
+AWS.config.update({
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  region: process.env.AWS_REGION
+});
+
 // Stripe Config
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -61,6 +69,33 @@ connectDB()
 
 // helmet for security
 app.use(helmet())
+
+// validator
+const verifyTokenMiddleware = async (req, res, next) => {
+
+  cookieParser()(req, res, () => {
+
+    const { token } = req.cookies;
+
+    if (!token) {
+      return res.status(500).send({ error: true });
+    }
+
+    jwt.verify(token, process.env.USER_JWT_SECRET, (err, decoded) => {
+      if (err) {
+        return res.status(500).send({ error: true });
+      }
+
+      if (decoded.type !== 'sessionToken') {
+        return res.status(500).send({ error: true });
+      }
+
+      req.userId = decoded.userId; // Store user ID for use in the request handlers
+      next();
+    });
+  });
+
+}
 
 // @route   POST api/create-checkout-session
 // @desc    Register a new checkout session
@@ -725,13 +760,13 @@ app.post('/api/sign-out-user', async (req, res) => {
 // @desc    Update userName
 // @access  Private
 
-app.post('/api/update-name',
+app.post('/api/update-name', verifyTokenMiddleware,
 [
   check("name")
     .isLength({ min: 6 }).withMessage('Name must be at least 6 characters long.')
     .trim()
     .escape()
-], cookieParser(), async (req, res) => {
+], async (req, res) => {
 
   const errors = validationResult(req)
   if (!errors.isEmpty()) {
@@ -742,15 +777,7 @@ app.post('/api/update-name',
 
     const { name } = req.body;
 
-    const { token } = req.cookies;
-
-    const decoded = jwt.verify(token, process.env.USER_JWT_SECRET);
-
-    if (decoded.type !== 'sessionToken') {
-      return res.status(500).send({ error: true });
-    }
-
-    const userId = decoded.userId
+    const userId = req.userId;
 
     // now update the user's name
     let user = await User.findOne({ _id: userId });
@@ -770,10 +797,10 @@ app.post('/api/update-name',
 // @desc    Update user email
 // @access  Private
 
-app.post('/api/update-email',
+app.post('/api/update-email', verifyTokenMiddleware,
   [
     check("email", "Please include a valid email").isEmail().normalizeEmail(),
-  ], cookieParser(), async (req, res) => {
+  ], async (req, res) => {
 
   const errors = validationResult(req)
   if (!errors.isEmpty()) {
@@ -784,15 +811,7 @@ app.post('/api/update-email',
 
     const { email } = req.body
 
-    const { token } = req.cookies;
-
-    const decoded = jwt.verify(token, process.env.USER_JWT_SECRET);
-
-    if (decoded.type !== 'sessionToken') {
-      return res.status(500).send({ error: true });
-    }
-
-    const userId = decoded.userId
+    const userId = req.userId
 
     // now update the user's email
     let user = await User.findOne({ _id: userId });
@@ -812,7 +831,7 @@ app.post('/api/update-email',
 // @desc    Update user password
 // @access  Private
 
-app.post('/api/update-password',
+app.post('/api/update-password', verifyTokenMiddleware,
   [
     check('newPass')
     .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long')
@@ -821,7 +840,7 @@ app.post('/api/update-password',
     .matches(/[0-9]/).withMessage('Password must contain at least one number')
     .matches(/[!@#$%^&*]/).withMessage('Password must contain at least one special character (!@#$%^&*)')
     .trim().escape()
-  ], cookieParser(), async (req, res) => {
+  ], async (req, res) => {
 
     const errors = validationResult(req)
     if (!errors.isEmpty()) {
@@ -830,23 +849,15 @@ app.post('/api/update-password',
 
   try {
 
-    const { newPass } = req.body
+    const { newPass } = req.body;
 
-    const { token } = req.cookies;
-
-    const decoded = jwt.verify(token, process.env.USER_JWT_SECRET);
-
-    if (decoded.type !== 'sessionToken') {
-      return res.status(500).send({ error: true });
-    }
-
-    const userId = decoded.userId
+    const userId = req.userId;
 
     // now update the user's password
     let user = await User.findOne({ _id: userId });
 
     /// before saving the user to the DB, encrypt the password with bcrypt ///
-    user.password = await bcrypt.hash(newPass, await bcrypt.genSalt(saltRounds))
+    user.password = await bcrypt.hash(newPass, await bcrypt.genSalt(saltRounds));
     await user.save();
 
     return res.status(200).send({ success: true });
@@ -861,7 +872,7 @@ app.post('/api/update-password',
 // @desc    handle post submit for Pinterest
 // @access  Private
 
-app.post('/api/handle-post-submit/pinterest',
+app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware,
 [
   // Validate postTitle
   body('postTitle').notEmpty().withMessage('Post title is required.'),
@@ -886,9 +897,7 @@ app.post('/api/handle-post-submit/pinterest',
           return true;
       }),
 
-  const 
-
-], cookieParser(), async (req, res) => {
+], async (req, res) => {
 
   const errors = validationResult(req)
   if (!errors.isEmpty()) {
@@ -899,15 +908,8 @@ app.post('/api/handle-post-submit/pinterest',
 
     const { name } = req.body;
 
-    const { token } = req.cookies;
 
-    const decoded = jwt.verify(token, process.env.USER_JWT_SECRET);
-
-    if (decoded.type !== 'sessionToken') {
-      return res.status(500).send({ error: true });
-    }
-
-    const userId = decoded.userId
+    const userId = req.userId
 
     // now update the user's name
     let user = await User.findOne({ _id: userId });
@@ -920,6 +922,72 @@ app.post('/api/handle-post-submit/pinterest',
   } catch (err) {
     return res.status(500).send({ error: true });
   }
+});
+
+
+// @route   POST /api/get-aws-preSignedUrl
+// @desc    Generate a preSignedUrl for direct user upload
+// @access  Private
+
+app.post('/api/get-aws-preSignedUrl', verifyTokenMiddleware, (req, res) => {
+
+  const s3 = new AWS.S3();
+
+  const { platofrm } = req.body;
+
+  const params = {
+    Bucket: 'sumbroo-media-upload',
+    Key: platofrm + '-' + req.userId, // cuz this is temporary and once reviewed it get deleted 
+    Expires: 60 * 2, // URL expires in 2 minutes
+    ContentType: 'binary/octet-stream'
+  };
+
+  s3.getSignedUrl('putObject', params, (err, url) => {
+
+    if (err) {
+      console.log('Error getting presigned URL', err);
+      res.status(500).json({ error: 'Error getting presigned URL' });
+      return;
+    }
+
+    return res.status(201).json({ url });
+
+  });
+
+});
+
+
+// @route   GEt /api/lambda-notification
+// @desc    Listen for Lambda's updates
+// @access  Public
+
+let clients = {};
+
+app.get('/api/lambda-notification/:requestId', (req, res) => {
+    const requestId = req.params.requestId;
+
+    // Set headers for SSE
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    // Store the client's response object so we can use it later when the Lambda function completes
+    clients[requestId] = res;
+});
+
+app.post('/api/lambda-completed', (req, res) => {
+    const requestId = req.body.requestId;
+    const result = req.body.result;
+
+    // If there's a frontend client waiting for this `requestId`, send them the result
+    const clientRes = clients[requestId];
+    if (clientRes) {
+      clientRes.write(`data: ${JSON.stringify(result)}\n\n`);  // send the result to the frontend client
+      clientRes.end();
+      delete clients[requestId];
+    }
+
+    res.send({ status: 'ok' });
 });
 
 
