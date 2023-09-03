@@ -944,10 +944,10 @@ app.post('/api/get-aws-preSignedUrl', verifyTokenMiddleware, async (req, res) =>
         Key: platform + '-' + req.userId,
         ContentType: contentType,
         Metadata: {
-          'x-amz-meta-request-id': requestId
+          'x-amz-meta-request-id': requestId,
+          'x-amz-meta-platform': platform
         }
     });
-
 
     try {
         const url = await getSignedUrl(s3Client, command, { expiresIn: 60 * 2 });
