@@ -863,10 +863,31 @@ app.post('/api/update-password',
 
 app.post('/api/handle-post-submit/pinterest',
 [
-  check("name")
-    .isLength({ min: 6 }).withMessage('Name must be at least 6 characters long.')
-    .trim()
-    .escape()
+  // Validate postTitle
+  body('postTitle').notEmpty().withMessage('Post title is required.'),
+
+  // Validate pinTitle
+  body('pinTitle')
+      .notEmpty().withMessage('Pin title is required.')
+      .isLength({ min: 40 }).withMessage('Pin title should be at least 40 characters.'),
+
+  // Validate text
+  body('text')
+      .notEmpty().withMessage('Text is required.')
+      .isLength({ min: 100 }).withMessage('Description should be at least 100 characters.'),
+
+  // Validate pinLink
+  body('pinLink')
+      .notEmpty().withMessage('Pin link is required.')
+      .custom((value) => {
+          if (!validator.isURL(value, { require_protocol: false })) {
+              throw new Error('Please provide a valid link');
+          }
+          return true;
+      }),
+
+  const 
+
 ], cookieParser(), async (req, res) => {
 
   const errors = validationResult(req)
