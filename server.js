@@ -978,11 +978,8 @@ app.get('/api/lambda-notification/:requestId', (req, res) => {
 app.post('/api/lambda-completed', (req, res) => {
   console.log('The route was hit, and this is the body', req.body)
   const requestId = req.body.requestId;
-  const result = req.body.result;
+  const result = req.body;
   const clientRes = clients[requestId];
-  console.log('requestId', requestId)
-  console.log('result', result)
-  console.log('clientRes', clientRes)
   if (clientRes) {
       clientRes.write(`data: ${JSON.stringify(result)}\n\n`);
       clientRes.end();
