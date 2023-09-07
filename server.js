@@ -940,13 +940,13 @@ app.post('/api/get-aws-preSignedUrl', verifyTokenMiddleware, async (req, res) =>
     const { platform, contentType, requestId } = req.body;
 
     const command = new PutObjectCommand({
-        Bucket: 'sumbroo-media-upload',
-        Key: platform + '-' + req.userId,
-        ContentType: contentType,
-        Metadata: {
-          'x-amz-meta-request-id': requestId,
-          'x-amz-meta-platform': platform
-        }
+      Bucket: 'sumbroo-media-upload',
+      Key: platform + '-' + req.userId,
+      ContentType: contentType,
+      Metadata: {
+        'x-amz-meta-request-id': requestId,
+        'x-amz-meta-platform': platform
+      }
     });
 
     try {
