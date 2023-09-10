@@ -874,7 +874,8 @@ app.post('/api/update-password', verifyTokenMiddleware,
 
 
 // @route   POST /api/handle-post-submit/pinterest
-// @desc    handle post submit for Pinterest
+// @desc    handle post submit for Pinterest, then reject errors 
+// or add the data to the DB and S3
 // @access  Private
 
 app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware,
