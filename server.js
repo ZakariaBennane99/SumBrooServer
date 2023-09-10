@@ -16,6 +16,10 @@ import cookieParser from 'cookie-parser';
 // New AWS SDK v3 imports
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import fileUpload from 'express-fileupload';
+import sharp from 'sharp';
+import ffmpeg from 'fluent-ffmpeg';
+
 
 // AWS Config
 const s3Client = new S3Client({
@@ -34,6 +38,10 @@ function generateOTP() {
 
 function capitalize(wd) {
   return wd.charAt(0).toUpperCase() + wd.slice(1);
+}
+
+function gcd(a, b) {
+  return b ? gcd(b, a % b) : a;
 }
 
 
@@ -627,7 +635,6 @@ app.post('/api/change-password',
 
 
 
-
 // @route   POST /api/auth
 // @desc    authenticate user
 // @access  Public
@@ -878,30 +885,134 @@ app.post('/api/update-password', verifyTokenMiddleware,
 // or add the data to the DB and S3
 // @access  Private
 
-app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware,
+app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(),
 [
   // Validate postTitle
-  body('postTitle').notEmpty().withMessage('Post title is required.'),
+  body('postTitle').notEmpty().withMessage('Post title is required.').trim().escape(),
 
   // Validate pinTitle
   body('pinTitle')
       .notEmpty().withMessage('Pin title is required.')
-      .isLength({ min: 40 }).withMessage('Pin title should be at least 40 characters.'),
+      .isLength({ min: 40 }).withMessage('Pin title should be at least 40 characters.').trim().escape(),
 
   // Validate text
   body('text')
       .notEmpty().withMessage('Text is required.')
-      .isLength({ min: 100 }).withMessage('Description should be at least 100 characters.'),
+      .isLength({ min: 100 }).withMessage('Description should be at least 100 characters.').trim().escape(),
 
   // Validate pinLink
   body('pinLink')
       .notEmpty().withMessage('Pin link is required.')
       .custom((value) => {
           if (!validator.isURL(value, { require_protocol: false })) {
-              throw new Error('Please provide a valid link');
+            throw new Error('Please provide a valid link');
           }
           return true;
-      }),
+      }).trim().escape(),
+
+  check('nicheAndTags.niche').isString().notEmpty().trim().escape(),
+  // Check that the "tags" field is an array with at least one element
+  check('nicheAndTags.tags').isArray({ min: 4 }).withMessage('At least 4 tags should be selected.').trim().escape(),
+  // Check that each tag in the "tags" array is a non-empty string
+  check('nicheAndTags.tags.*').isString().trim().escape(),    
+
+  // Validate image
+  body('image').custom(async (value, { req }) => {
+
+    if (!req.files || !req.files.image) {
+      throw new Error('Image is required.');
+    }
+  
+    const image = req.files.image;
+    const errors = [];
+  
+    try {
+
+      const metadata = await sharp(image.data).metadata();
+      const aspectRatio = metadata.width / metadata.height;
+      const divisor = gcd(metadata.width, metadata.height);
+      const simplifiedWidth = metadata.width / divisor;
+      const simplifiedHeight = metadata.height / divisor;
+  
+      if (image.size > 20 * 1048576) {
+        errors.push(`Image size must not exceed 20MB. This image's size is ${(image.size / 1048576).toFixed(2)}MB.`);
+      }
+      if (!['jpeg', 'png', 'tiff', 'webp', 'bmp'].includes(metadata.format)) {
+        errors.push(`Image type must be of a BMP/JPEG/PNG/TIFF/WEBP format. This is a ${metadata.format.toUpperCase()} image.`);
+      }
+      if (Math.abs(2/3 - aspectRatio) > 0.2 && Math.abs(9/16 - aspectRatio) > 0.2) {
+        errors.push(`Image aspect ratio must be 2:3 or 9:16. This image is ${simplifiedWidth}:${simplifiedHeight}.`);
+      }
+      if (metadata.width < 1000 || metadata.height < 1500) {
+        errors.push(`Image resolution must be at least 1000px by 1500px. This image is ${metadata.width}px by ${metadata.height}px.`);
+      }
+    } catch (error) {
+      errors.push('Invalid image file.');
+    }
+  
+    if (errors.length) {
+      throw new Error(errors);
+    }
+
+    return true;
+
+  }),
+  
+  // Validate video
+  body('video').custom(async (value, { req }) => {
+
+    if (!req.files || !req.files.video) {
+      throw new Error('Video is required.');
+    }
+  
+    const video = req.files.video;
+    const errors = [];
+  
+    // Check file size (in bytes)
+    if (video.size > 2e9) {
+      errors.push(`Video size must be less than 2GB. This video's size is ${(video.size / 1e9).toFixed(2)}GB.`);
+    }
+  
+    return new Promise((resolve, reject) => {
+      ffmpeg.ffprobe(video.tempFilePath, (err, metadata) => {
+        if (err) {
+          errors.push('Invalid video file.');
+          return reject(new Error(errors.join(' ')));
+        }
+  
+        const videoStream = metadata.streams.find(stream => stream.codec_type === 'video');
+        if (!videoStream) {
+          errors.push('No valid video stream found.');
+          return reject(new Error(errors.join(' ')));
+        }
+  
+        const aspectRatio = videoStream.width / videoStream.height;
+        const divisor = gcd(videoStream.width, videoStream.height);
+        const simplifiedWidth = videoStream.width / divisor;
+        const simplifiedHeight = videoStream.height / divisor;
+  
+        if (Math.abs(2/3 - aspectRatio) > 0.2 && Math.abs(9/16 - aspectRatio) > 0.2) {
+          errors.push(`Video aspect ratio must be 9:16 or 2:3. This video has ${simplifiedWidth}:${simplifiedHeight} ratio.`);
+        }
+  
+        if (videoStream.width < 540 || videoStream.height < 960) {
+          errors.push(`Video resolution must be at least 540px by 960px. This video is ${videoStream.width}px by ${videoStream.height}px.`);
+        }
+  
+        const duration = metadata.format.duration;
+        if (duration > 300 || duration < 4) {
+          errors.push(`Video duration must be at least 4 seconds and at most 5 minutes. This video is ${duration.toFixed(2)} seconds long.`);
+        }
+  
+        if (errors.length) {
+          return reject(new Error(errors));
+        }
+  
+        resolve(true);
+
+      });
+    });
+  }),
 
 ], async (req, res) => {
 
@@ -960,11 +1071,6 @@ app.post('/api/get-aws-preSignedUrl', verifyTokenMiddleware, async (req, res) =>
     }
 
 });
-
-// @route   GET /api/lambda-notification
-
-
-
 
 
 app.listen(PORT, () => {
