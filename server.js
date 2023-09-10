@@ -950,43 +950,18 @@ app.post('/api/get-aws-preSignedUrl', verifyTokenMiddleware, async (req, res) =>
     });
 
     try {
-        const url = await getSignedUrl(s3Client, command, { expiresIn: 60 * 2 });
-        console.log("Signed URL: ", url);
-        return res.status(201).json({ url });
+      const url = await getSignedUrl(s3Client, command, { expiresIn: 60 * 2 });
+      console.log("Signed URL: ", url);
+      return res.status(201).json({ url });
     } catch (err) {
-        console.log('Error getting presigned URL', err);
-        res.status(500).json({ error: 'Error getting presigned URL' });
+      console.log('Error getting presigned URL', err);
+      res.status(500).json({ error: 'Error getting presigned URL' });
     }
 
 });
 
 // @route   GET /api/lambda-notification
-// @desc    Listen for Lambda's updates
-// @access  Public
 
-let clients = {};
-
-app.get('/api/lambda-notification/:requestId', (req, res) => {
-    const requestId = req.params.requestId;
-    console.log('The front-end initiated the SSE');
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    clients[requestId] = res;
-});
-
-app.post('/api/lambda-completed', (req, res) => {
-  console.log('The route was hit, and this is the body', req.body)
-  const requestId = req.body.requestId;
-  const result = req.body;
-  const clientRes = clients[requestId];
-  if (clientRes) {
-      clientRes.write(`data: ${JSON.stringify(result)}\n\n`);
-      clientRes.end();
-      delete clients[requestId];
-  }
-  res.send({ status: 'ok' });
-});
 
 
 
