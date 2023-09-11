@@ -19,6 +19,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import fileUpload from 'express-fileupload';
 import sharp from 'sharp';
 import ffmpeg from 'fluent-ffmpeg';
+import validator from 'validator';
 
 
 // AWS Config
@@ -62,19 +63,31 @@ app.use(cors({
 // Stripe Config
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
-app.use(bodyParser.json({
+const jsonParser = bodyParser.json({
   verify: (req, res, buf) => {
-    req.rawBody = buf;
+    req.rawRaw = buf;
   }
-}));
+});
 
-app.use(bodyParser.urlencoded({
+const urlencodedParser = bodyParser.urlencoded({
   extended: true,
   verify: (req, res, buf) => {
     req.rawBody = buf;
   }
-}));
+});
 
+app.use((req, res, next) => {
+
+  if (req.path === '/api/handle-post-submit/pinterest') {
+    return next();
+  }
+
+  jsonParser(req, res, (err) => {
+    if (err) return next(err);
+    urlencodedParser(req, res, next);
+  });
+
+});
 
 
 // connecting the DB
@@ -768,6 +781,7 @@ app.post('/api/sign-out-user', async (req, res) => {
   }
 });
 
+
 // @route   POST /api/update-name
 // @desc    Update userName
 // @access  Private
@@ -885,7 +899,14 @@ app.post('/api/update-password', verifyTokenMiddleware,
 // or add the data to the DB and S3
 // @access  Private
 
-app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(),
+app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(), (req, res, next) => {
+  try {
+    req.body.tags = JSON.parse(req.body.tags);
+  } catch (e) {
+    console.error('Error parsing tags field:', e);
+  }
+  next();
+},
 [
   // Validate postTitle
   body('postTitle').notEmpty().withMessage('Post title is required.').trim().escape(),
@@ -910,18 +931,21 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
           return true;
       }).trim().escape(),
 
-  check('nicheAndTags.niche').isString().notEmpty().trim().escape(),
-  // Check that the "tags" field is an array with at least one element
-  check('nicheAndTags.tags').isArray({ min: 4 }).withMessage('At least 4 tags should be selected.').trim().escape(),
-  // Check that each tag in the "tags" array is a non-empty string
-  check('nicheAndTags.tags.*').isString().trim().escape(),    
+  // Now validate the properties of the parsed object
+  body('niche').isString().notEmpty().trim().escape(),
+  body('tags').isArray({ min: 4 }).withMessage('At least 4 tags should be selected.'),
+  body('tags.*').isString().trim().escape(),
 
   // Validate image
   body('image').custom(async (value, { req }) => {
 
+    if (req.files && req.files.video) {
+      return true;
+    }
+  
     if (!req.files || !req.files.image) {
       throw new Error('Image is required.');
-    }
+    }  
   
     const image = req.files.image;
     const errors = [];
@@ -961,6 +985,10 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
   // Validate video
   body('video').custom(async (value, { req }) => {
 
+    if (req.files && req.files.image) {
+      return true;
+    }
+  
     if (!req.files || !req.files.video) {
       throw new Error('Video is required.');
     }
@@ -1016,6 +1044,7 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
 
 ], async (req, res) => {
 
+  console.log('Targeting field:', req.body.niche, req.body.tags)
   const errors = validationResult(req)
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() })
@@ -1024,12 +1053,10 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
   try {
 
     // destructure the data
-    const { postTitle, pinTitle, text, pinLink, nicheAndTags } = req.body;
-    const { niche, tags } = nicheAndTags;
+    const { postTitle, pinTitle, text, pinLink, niche, tags } = req.body;
 
     // Destructure validated media files from req.files
     const { image, video } = req.files;
-
 
     const userId = req.userId
 
@@ -1041,7 +1068,8 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
     return res.status(200).send({ success: true });
 
   } catch (err) {
-    return res.status(500).send({ error: true });
+    console.log(err)
+    return res.status(500).send({ error: err });
   }
 });
 
