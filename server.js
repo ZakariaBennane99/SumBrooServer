@@ -1023,18 +1023,22 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
 
   try {
 
-    const { name } = req.body;
+    // destructure the data
+    const { postTitle, pinTitle, text, pinLink, nicheAndTags } = req.body;
+    const { niche, tags } = nicheAndTags;
+
+    // Destructure validated media files from req.files
+    const { image, video } = req.files;
 
 
     const userId = req.userId
 
     // now update the user's name
-    let user = await User.findOne({ _id: userId });
+    // let user = await User.findOne({ _id: userId });
 
-    user.name = name;
-    await user.save();
+    conosle.log('THE ENTIRE DATA', postTitle, pinTitle, text, pinLink, niche, tags, image, video, userId)
 
-    return res.status(200).send({ name: name });
+    return res.status(200).send({ success: true });
 
   } catch (err) {
     return res.status(500).send({ error: true });
