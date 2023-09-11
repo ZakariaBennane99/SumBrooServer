@@ -1058,12 +1058,32 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
     // Destructure validated media files from req.files
     const { image, video } = req.files;
 
-    const userId = req.userId
+    const userId = req.userId;
+
+    const FILE_KEY = 'pinterest-' + userId;
+
+    console.log('the image', image)
+    console.log('the video', video)
+
+    // Upload the file to S3
+    const command = new PutObjectCommand({
+      Bucket: 'sumbroo-media-upload',
+      Key: FILE_KEY,
+      Body: image ? image.file : video.file, // This should be the file stream or file buffer
+      ACL: "public-read",  // To allow the file to be publicly accessible
+      ContentType: image ? image.mimetype : video.mimetype
+    });
+
+    await s3Client.send(command);
+
+    // Construct the file URL
+    const fileUrl = `https://sumbroo-media-upload.s3.us-east-1.amazonaws.com/${FILE_KEY}`;
+
+    console.log("File uploaded successfully. File URL:", fileUrl);
 
     // now update the user's name
-    // let user = await User.findOne({ _id: userId });
+    //let user = await User.findOne({ _id: userId });
 
-    conosle.log('THE ENTIRE DATA', postTitle, pinTitle, text, pinLink, niche, tags, image, video, userId)
 
     return res.status(200).send({ success: true });
 
@@ -1071,6 +1091,7 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
     console.log(err)
     return res.status(500).send({ error: err });
   }
+
 });
 
 
