@@ -11,7 +11,7 @@ import bcrypt from 'bcrypt'
 import Stripe from 'stripe';
 import mongoSanitize from 'express-mongo-sanitize';
 import { SESClient, SendTemplatedEmailCommand } from "@aws-sdk/client-ses";
-import dns from 'dns';
+import dns, { FILE } from 'dns';
 import cookieParser from 'cookie-parser';
 // New AWS SDK v3 imports
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
@@ -1060,16 +1060,15 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
 
     const userId = req.userId;
 
-    const FILE_KEY = 'pinterest-' + userId;
+    const fileExtension = image ? image.mimetype.split('/')[1] : video.mimetype.split('/')[1];
 
-    console.log('the image', image)
-    console.log('the video', video)
+    const FILE_KEY = 'pinterest-' + userId + '.' + fileExtension;
 
     // Upload the file to S3
     const command = new PutObjectCommand({
       Bucket: 'sumbroo-media-upload',
       Key: FILE_KEY,
-      Body: image ? image.file : video.file, // This should be the file stream or file buffer
+      Body: image ? image.data : video.data, // This should be the file stream or file buffer
       ACL: "public-read",  // To allow the file to be publicly accessible
       ContentType: image ? image.mimetype : video.mimetype
     });
