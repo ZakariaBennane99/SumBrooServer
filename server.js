@@ -1060,9 +1060,7 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
 
     const userId = req.userId;
 
-    const fileExtension = image ? image.mimetype.split('/')[1] : video.mimetype.split('/')[1];
-
-    const FILE_KEY = 'pinterest-' + userId + '.' + fileExtension;
+    const FILE_KEY = 'pinterest-' + userId;
 
     // Upload the file to S3
     const command = new PutObjectCommand({
@@ -1078,11 +1076,11 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
     // Construct the file URL
     const fileUrl = `https://sumbroo-media-upload.s3.us-east-1.amazonaws.com/${FILE_KEY}`;
 
-    console.log("File uploaded successfully. File URL:", fileUrl);
-
     // now update the user's name
-    //let user = await User.findOne({ _id: userId });
+    let user = await User.findOne({ _id: userId });
 
+    // here you have to save the data to the DB
+    user.socialMediaLinks.post
 
     return res.status(200).send({ success: true });
 

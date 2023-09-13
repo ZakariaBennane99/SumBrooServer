@@ -24,10 +24,6 @@ const PinterestTextualDataSchema = new Schema({
     destinationLink: {
         type: String,
         required: true
-    },
-    board: {
-        type: String,
-        required: true
     }
 });
 
@@ -51,7 +47,7 @@ const PostSchema = new Schema({
     },
     platform: String,
     postLink: String, // for published posts
-    postId: String, // post ID from the platform API
+    postId: String, // for published posts: post ID from the platform API
     publishingDate: Date,
     // before the review, this represents the date at which 
     // user hit publish after the review this should be 
