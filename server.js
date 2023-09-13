@@ -33,6 +33,8 @@ const s3Client = new S3Client({
 
 
 
+// Utils functions
+
 function generateOTP() {
   return Math.floor(Math.random() * (9999999 - 1000000 + 1)) + 1000000;
 }
@@ -43,6 +45,23 @@ function capitalize(wd) {
 
 function gcd(a, b) {
   return b ? gcd(b, a % b) : a;
+}
+
+function getCurrentUTCDate() {
+
+  const now = new Date();
+
+  const utcFullYear = now.getUTCFullYear();
+  const utcMonth = String(now.getUTCMonth() + 1).padStart(2, '0'); 
+  const utcDate = String(now.getUTCDate()).padStart(2, '0');
+  const utcHours = String(now.getUTCHours()).padStart(2, '0');
+  const utcMinutes = String(now.getUTCMinutes()).padStart(2, '0');
+  const utcSeconds = String(now.getUTCSeconds()).padStart(2, '0');
+
+  const fullUTCDate = `${utcFullYear}-${utcMonth}-${utcDate} ${utcHours}:${utcMinutes}:${utcSeconds} UTC`;
+
+  return fullUTCDate
+
 }
 
 
@@ -214,8 +233,6 @@ app.post('/api/webhook', async (request, response) => {
   }
 
 });
-
-
 
 
 
@@ -896,7 +913,7 @@ app.post('/api/update-password', verifyTokenMiddleware,
 
 // @route   POST /api/handle-post-submit/pinterest
 // @desc    handle post submit for Pinterest, then reject errors 
-// or add the data to the DB and S3
+//          or add the data to the DB and S3
 // @access  Private
 
 app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(), (req, res, next) => {
@@ -1079,8 +1096,44 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
     // now update the user's name
     let user = await User.findOne({ _id: userId });
 
+    // before you register the new post
+    // check if the user has already posted in the last 24H
+    // by sorting getting the date of the latest post and 
+    // comparing it with the current day and hour
+    // otherwise return error 505
+    
     // here you have to save the data to the DB
-    user.socialMediaLinks.post
+    // effectivley creating a new post by platform
+    const socialMediaLink = user.socialMediaLinks.find(link => link.platformName === "pinterest");
+
+    // Create a new post
+    const newPost = {
+      postTitle: postTitle, 
+      postStatus: "in review", // Set the initial status to "in review"
+      platform: "pinterest", // Set the platform to "pinterest"
+      content: {
+          media: {
+              mediaType: image ? "image" : "video", // Determine the media type based on the presence of image or video
+              awsLink: fileUrl, // Set the AWS link to the file URL you constructed
+          },
+          textualData: {
+              pinterest: {
+                  title: pinTitle, // Set the Pinterest title to the pinTitle from the request body
+                  description: text, // Set the description to the text from the request body
+                  destinationLink: pinLink, // Set the destination link to the pinLink from the request body
+              },
+          },
+      },
+      publishingDate: getCurrentUTCDate(), // this is to keep track
+      targetingNiche: niche, // Set the targeting niche to the niche from the request body
+      targetingTags: tags, // Set the targeting tags to the tags from the request body
+    };
+
+    // Add the new post to the posts array of the social media link
+    socialMediaLink.posts.push(newPost);
+
+    // Save the user document with the new post
+    await user.save();
 
     return res.status(200).send({ success: true });
 

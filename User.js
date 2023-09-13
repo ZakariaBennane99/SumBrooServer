@@ -40,6 +40,9 @@ const PostContentSchema = new Schema({
 });
 
 const PostSchema = new Schema({
+    postTitle: {
+        type: String
+    },
     postStatus: {
         type: String,
         enum: ["in review", "rejected", "published"],
