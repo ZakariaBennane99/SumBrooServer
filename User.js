@@ -53,6 +53,14 @@ const PostSchema = new Schema({
     // user hit publish after the review this should be 
     // updated to the actual publishing date (in case of accepting the post)
     content: PostContentSchema, // after publishing remove the content
+    targetingNiche: {
+        type: String,
+        required: true
+    },
+    targetingTags: {
+        type: [String],
+        required: true
+    },
     comment: String, // for rejected posts
     analytics: {
         type: Schema.Types.Mixed
