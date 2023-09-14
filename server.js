@@ -1158,36 +1158,6 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
 
 
 
-// @route   POST /api/get-aws-preSignedUrl
-// @desc    Generate a preSignedUrl for direct user upload
-// @access  Private
-
-app.post('/api/get-aws-preSignedUrl', verifyTokenMiddleware, async (req, res) => {
-
-    const { platform, contentType, requestId } = req.body;
-
-    const command = new PutObjectCommand({
-      Bucket: 'sumbroo-media-upload',
-      Key: platform + '-' + req.userId,
-      ContentType: contentType,
-      Metadata: {
-        'x-amz-meta-request-id': requestId,
-        'x-amz-meta-platform': platform
-      }
-    });
-
-    try {
-      const url = await getSignedUrl(s3Client, command, { expiresIn: 60 * 2 });
-      console.log("Signed URL: ", url);
-      return res.status(201).json({ url });
-    } catch (err) {
-      console.log('Error getting presigned URL', err);
-      res.status(500).json({ error: 'Error getting presigned URL' });
-    }
-
-});
-
-
 app.listen(PORT, () => {
   console.log(`App listening on port ${PORT}`)
 })
