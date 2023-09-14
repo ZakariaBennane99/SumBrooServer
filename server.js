@@ -20,6 +20,7 @@ import fileUpload from 'express-fileupload';
 import sharp from 'sharp';
 import ffmpeg from 'fluent-ffmpeg';
 import validator from 'validator';
+import { error } from 'console';
 
 
 // AWS Config
@@ -1106,36 +1107,47 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
     // effectivley creating a new post by platform
     const socialMediaLink = user.socialMediaLinks.find(link => link.platformName === "pinterest");
 
-    // Create a new post
-    const newPost = {
-      postTitle: postTitle, 
-      postStatus: "in review", // Set the initial status to "in review"
-      platform: "pinterest", // Set the platform to "pinterest"
-      content: {
-          media: {
-              mediaType: image ? "image" : "video", // Determine the media type based on the presence of image or video
-              awsLink: fileUrl, // Set the AWS link to the file URL you constructed
-          },
-          textualData: {
-              pinterest: {
-                  title: pinTitle, // Set the Pinterest title to the pinTitle from the request body
-                  description: text, // Set the description to the text from the request body
-                  destinationLink: pinLink, // Set the destination link to the pinLink from the request body
-              },
-          },
-      },
-      publishingDate: getCurrentUTCDate(), // this is to keep track
-      targetingNiche: niche, // Set the targeting niche to the niche from the request body
-      targetingTags: tags, // Set the targeting tags to the tags from the request body
-    };
+    const result = await collection.aggregate(pipeline).toArray();
 
-    // Add the new post to the posts array of the social media link
-    socialMediaLink.posts.push(newPost);
+    // checking if the user has already pusblished a post in the last 24H
+    // here the date is in UTC
+    // This is just a check up cuz I already implemented the check in the front-end
+    // If users try to game the system they will get an error telling them to fuck off.
+    if (result[0]?.maxPublishingDate >= getCurrentUTCDate()) {
+      return res.status(500).send({ error: err });
+    } else {
+      // Create a new post
+      const newPost = {
+        postTitle: postTitle, 
+        postStatus: "in review", // Set the initial status to "in review"
+        platform: "pinterest", // Set the platform to "pinterest"
+        content: {
+            media: {
+                mediaType: image ? "image" : "video", // Determine the media type based on the presence of image or video
+                awsLink: fileUrl, // Set the AWS link to the file URL you constructed
+            },
+            textualData: {
+                pinterest: {
+                    title: pinTitle, // Set the Pinterest title to the pinTitle from the request body
+                    description: text, // Set the description to the text from the request body
+                    destinationLink: pinLink, // Set the destination link to the pinLink from the request body
+                },
+            },
+        },
+        publishingDate: getCurrentUTCDate(), // this is to keep track
+        targetingNiche: niche, // Set the targeting niche to the niche from the request body
+        targetingTags: tags, // Set the targeting tags to the tags from the request body
+      };
+  
+      // Add the new post to the posts array of the social media link
+      socialMediaLink.posts.push(newPost);
+  
+      // Save the user document with the new post
+      await user.save();
+  
+      return res.status(200).send({ success: true }); 
 
-    // Save the user document with the new post
-    await user.save();
-
-    return res.status(200).send({ success: true });
+    }
 
   } catch (err) {
     console.log(err)
