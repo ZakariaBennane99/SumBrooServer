@@ -173,5 +173,6 @@ const UserSchema = new Schema({
     socialMediaLinks: [SocialMediaLinkSchema]
 });
 
+
 const User = model("user", UserSchema);
 export default User;
