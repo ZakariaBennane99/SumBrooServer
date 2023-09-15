@@ -11,16 +11,22 @@ import bcrypt from 'bcrypt'
 import Stripe from 'stripe';
 import mongoSanitize from 'express-mongo-sanitize';
 import { SESClient, SendTemplatedEmailCommand } from "@aws-sdk/client-ses";
-import dns, { FILE } from 'dns';
+import dns from 'dns';
 import cookieParser from 'cookie-parser';
 // New AWS SDK v3 imports
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import fileUpload from 'express-fileupload';
 import sharp from 'sharp';
 import ffmpeg from 'fluent-ffmpeg';
 import validator from 'validator';
-import { error } from 'console';
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 
 
 // AWS Config
@@ -1018,51 +1024,81 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
     if (video.size > 2e9) {
       errors.push(`Video size must be less than 2GB. This video's size is ${(video.size / 1e9).toFixed(2)}GB.`);
     }
+
+    const tempFilePath = path.join(__dirname, 'tempfile' + Date.now());
   
     return new Promise((resolve, reject) => {
-      ffmpeg.ffprobe(video.tempFilePath, (err, metadata) => {
-        if (err) {
-          errors.push('Invalid video file.');
-          return reject(new Error(errors.join(' ')));
-        }
-  
-        const videoStream = metadata.streams.find(stream => stream.codec_type === 'video');
-        if (!videoStream) {
-          errors.push('No valid video stream found.');
-          return reject(new Error(errors.join(' ')));
-        }
-  
-        const aspectRatio = videoStream.width / videoStream.height;
-        const divisor = gcd(videoStream.width, videoStream.height);
-        const simplifiedWidth = videoStream.width / divisor;
-        const simplifiedHeight = videoStream.height / divisor;
-  
-        if (Math.abs(2/3 - aspectRatio) > 0.2 && Math.abs(9/16 - aspectRatio) > 0.2) {
-          errors.push(`Video aspect ratio must be 9:16 or 2:3. This video has ${simplifiedWidth}:${simplifiedHeight} ratio.`);
-        }
-  
-        if (videoStream.width < 540 || videoStream.height < 960) {
-          errors.push(`Video resolution must be at least 540px by 960px. This video is ${videoStream.width}px by ${videoStream.height}px.`);
-        }
-  
-        const duration = metadata.format.duration;
-        if (duration > 300 || duration < 4) {
-          errors.push(`Video duration must be at least 4 seconds and at most 5 minutes. This video is ${duration.toFixed(2)} seconds long.`);
-        }
-  
-        if (errors.length) {
-          return reject(new Error(errors));
-        }
-  
-        resolve(true);
 
-      });
+      fs.writeFile(tempFilePath, video.data, (err) => {
+
+        if (err) {
+          errors.push('Failed to write temporary file.');
+          return reject(new Error(errors.join(' ')));
+        }
+
+        ffmpeg.ffprobe(tempFilePath, (err, metadata) => {
+
+          if (err) {
+            console.log(err)
+            errors.push('Invalid video file.');
+            fs.unlink(tempFilePath, (err) => {
+              if (err) {
+                console.error('Failed to delete temporary file:', err);
+              }
+            });
+            return reject(new Error(errors.join(' ')));
+          }
+    
+          const videoStream = metadata.streams.find(stream => stream.codec_type === 'video');
+          if (!videoStream) {
+            errors.push('No valid video stream found.');
+            fs.unlink(tempFilePath, (err) => {
+              if (err) {
+                console.error('Failed to delete temporary file:', err);
+              }
+            });
+            return reject(new Error(errors.join(' ')));
+          }
+    
+          const aspectRatio = videoStream.width / videoStream.height;
+          const divisor = gcd(videoStream.width, videoStream.height);
+          const simplifiedWidth = videoStream.width / divisor;
+          const simplifiedHeight = videoStream.height / divisor;
+    
+          if (Math.abs(2/3 - aspectRatio) > 0.2 && Math.abs(9/16 - aspectRatio) > 0.2) {
+            errors.push(`Video aspect ratio must be 9:16 or 2:3. This video has ${simplifiedWidth}:${simplifiedHeight} ratio.`);
+          }
+    
+          if (videoStream.width < 540 || videoStream.height < 960) {
+            errors.push(`Video resolution must be at least 540px by 960px. This video is ${videoStream.width}px by ${videoStream.height}px.`);
+          }
+    
+          const duration = metadata.format.duration;
+          if (duration > 300 || duration < 4) {
+            errors.push(`Video duration must be at least 4 seconds and at most 5 minutes. This video is ${duration.toFixed(2)} seconds long.`);
+          }
+
+          fs.unlink(tempFilePath, (err) => {
+            if (err) {
+              console.error('Failed to delete temporary file:', err);
+            }
+          });
+    
+          if (errors.length) {
+            return reject(new Error(errors));
+          }
+    
+          resolve(true);
+  
+        });
+
+      })
+
     });
   }),
 
 ], async (req, res) => {
 
-  console.log('Targeting field:', req.body.niche, req.body.tags)
   const errors = validationResult(req)
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() })
@@ -1102,8 +1138,13 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
         },
       },
     ];
-    
-    const result = await User.aggregate(pipeline).toArray();    
+
+    let result;
+    try {
+      result = await User.aggregate(pipeline);
+    } catch (error) {
+      console.error(error);
+    } 
 
     const maxDate = result[0]?.maxPublishingDate;
 
@@ -1158,10 +1199,13 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
         targetingTags: tags, // Set the targeting tags to the tags from the request body
       };
   
-      // Add the new post to the posts array of the social media link
+      // Find the correct social media link
+      let socialMediaLink = user.socialMediaLinks.find(link => link.platformName === "pinterest");
+
+      // Add the new post to the posts array of the correct social media link
       socialMediaLink.posts.push(newPost);
-  
-      // Save the user document with the new post
+
+      // Save the user document
       await user.save();
   
       return res.status(200).send({ success: true }); 
