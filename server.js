@@ -1078,25 +1078,6 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
 
     const userId = req.userId;
 
-    const FILE_KEY = 'pinterest-' + userId;
-
-    // Upload the file to S3
-    const command = new PutObjectCommand({
-      Bucket: 'sumbroo-media-upload',
-      Key: FILE_KEY,
-      Body: image ? image.data : video.data, // This should be the file stream or file buffer
-      ACL: "public-read",  // To allow the file to be publicly accessible
-      ContentType: image ? image.mimetype : video.mimetype
-    });
-
-    await s3Client.send(command);
-
-    // Construct the file URL
-    const fileUrl = `https://sumbroo-media-upload.s3.us-east-1.amazonaws.com/${FILE_KEY}`;
-
-    // now update the user's name
-    let user = await User.findOne({ _id: userId });
-
     // before you register the new post
     // check if the user has already posted in the last 24H
     // by sorting getting the date of the latest post and 
@@ -1105,17 +1086,55 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
     
     // here you have to save the data to the DB
     // effectivley creating a new post by platform
-    const socialMediaLink = user.socialMediaLinks.find(link => link.platformName === "pinterest");
 
-    const result = await collection.aggregate(pipeline).toArray();
+    const pipeline = [
+      {
+        $match: {
+          _id: userId, 
+        },
+      },
+      { $unwind: '$socialMediaLinks' },
+      { $unwind: '$socialMediaLinks.posts' },
+      {
+        $group: {
+          _id: null,
+          maxPublishingDate: { $max: '$socialMediaLinks.posts.publishingDate' },
+        },
+      },
+    ];
+    
+    const result = await User.aggregate(pipeline).toArray();    
+
+    const maxDate = result[0]?.maxPublishingDate;
 
     // checking if the user has already pusblished a post in the last 24H
     // here the date is in UTC
     // This is just a check up cuz I already implemented the check in the front-end
     // If users try to game the system they will get an error telling them to fuck off.
-    if (result[0]?.maxPublishingDate >= getCurrentUTCDate()) {
+    if (maxDate && maxDate >= getCurrentUTCDate()) {
+
       return res.status(500).send({ error: err });
+      
     } else {
+
+      let user = await User.findOne({ _id: userId })   
+
+      const FILE_KEY = 'pinterest-' + userId;
+
+      // Upload the file to S3
+      const command = new PutObjectCommand({
+        Bucket: 'sumbroo-media-upload',
+        Key: FILE_KEY,
+        Body: image ? image.data : video.data, // This should be the file stream or file buffer
+        ACL: "public-read",  // To allow the file to be publicly accessible
+        ContentType: image ? image.mimetype : video.mimetype
+      });
+  
+      await s3Client.send(command);
+  
+      // Construct the file URL
+      const fileUrl = `https://sumbroo-media-upload.s3.us-east-1.amazonaws.com/${FILE_KEY}`;
+
       // Create a new post
       const newPost = {
         postTitle: postTitle, 
