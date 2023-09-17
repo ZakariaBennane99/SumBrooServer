@@ -48,6 +48,10 @@ const PostSchema = new Schema({
         enum: ["in review", "rejected", "published"],
         required: true
     },
+    hostUserId: {
+        type: String,
+        required: true
+    },
     platform: String,
     postLink: String, // for published posts
     postId: String, // for published posts: post ID from the platform API
