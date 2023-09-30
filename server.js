@@ -925,6 +925,7 @@ app.post('/api/update-password', verifyTokenMiddleware,
 
 app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(), (req, res, next) => {
   try {
+    console.log('Just hit the route')
     req.body.tags = JSON.parse(req.body.tags);
   } catch (e) {
     console.error('Error parsing tags field:', e);
@@ -962,6 +963,8 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
 
   // Validate image
   body('image').custom(async (value, { req }) => {
+
+    console.log('validate the image')
 
     if (req.files && req.files.video) {
       return true;
@@ -1106,6 +1109,8 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
 
   try {
 
+    console.log('Passed the inital stage')
+
     // destructure the data
     const { postTitle, pinTitle, text, pinLink, niche, tags } = req.body;
 
@@ -1134,7 +1139,7 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
       {
         $group: {
           _id: null,
-          maxPublishingDate: { $max: '$socialMediaLinks.posts.publishingDate' },
+          maxPublishingDate: { $max: '$socialMediaLinks.posts.lastPublished' },
         },
       },
     ];
