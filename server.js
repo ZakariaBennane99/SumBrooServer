@@ -1205,14 +1205,15 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
       // @TODO: FUNCTION THAT PICKS THE RIGHT HOST BASED ON THE TARGET
 
       const tagsResult = await User.aggregate([
+
         // Unwind the socialMediaLinks array to denormalize the data
         { $unwind: "$socialMediaLinks" },
 
+        // Match users that have the provided niche and don't have the provided ID
+        { $match: { "socialMediaLinks.niche": niche, _id: { $ne: userId } } },
+
         // Unwind the posts array to denormalize the data
         { $unwind: "$socialMediaLinks.posts" },
-
-        // Match posts with the specified niche
-        { $match: { "socialMediaLinks.posts.targetingNiche": niche } },
 
         // Group by user ID to aggregate the unique tags for each user
         {
@@ -1222,7 +1223,7 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
             }
         },
 
-        // Project the final structure with the user's ID and the aggregated tags
+        // Flatten the tags array and project the final structure with the user's ID
         {
             $project: {
                 _id: 0, 
@@ -1238,7 +1239,9 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
         }
       ]);
 
-      const hostId = findBestMatch(tagsResult[0].tags, tags)
+      console.log(tagsResult)
+
+      const hostId = findBestMatch(tagsResult[0].tags, tags.toLowerCase())
 
       // Create a new post
       const newPost = {
