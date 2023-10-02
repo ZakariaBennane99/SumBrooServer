@@ -71,6 +71,27 @@ function getCurrentUTCDate() {
 
 }
 
+function findBestMatch(objects, tags) {
+
+  let maxMatchCount = 0;
+  let bestMatchId = null;
+
+  for (let obj of objects) {
+      let matchCount = 0;
+      for (let tag of obj.tags) {
+          if (tags.includes(tag)) {
+              matchCount++;
+          }
+      }
+      if (matchCount > maxMatchCount) {
+          maxMatchCount = matchCount;
+          bestMatchId = obj.id;
+      }
+  }
+
+  return bestMatchId;
+}
+
 
 const PORT = 4050
 
@@ -1109,8 +1130,6 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
 
   try {
 
-    console.log('Passed the inital stage')
-
     // destructure the data
     const { postTitle, pinTitle, text, pinLink, niche, tags } = req.body;
 
@@ -1185,7 +1204,43 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
       // in the database. 
       // @TODO: FUNCTION THAT PICKS THE RIGHT HOST BASED ON THE TARGET
 
+      const tagsResult = await User.aggregate([
+        // Unwind the socialMediaLinks array to denormalize the data
+        { $unwind: "$socialMediaLinks" },
 
+        // Unwind the posts array to denormalize the data
+        { $unwind: "$socialMediaLinks.posts" },
+
+        // Match posts with the specified niche
+        { $match: { "socialMediaLinks.posts.targetingNiche": niche } },
+
+        // Group by user ID to aggregate the unique tags for each user
+        {
+            $group: {
+                _id: "$_id", // User's ID
+                tags: { $addToSet: "$socialMediaLinks.posts.targetingTags" }
+            }
+        },
+
+        // Project the final structure with the user's ID and the aggregated tags
+        {
+            $project: {
+                _id: 0, 
+                id: "$_id",
+                tags: {
+                    $reduce: {
+                        input: "$tags",
+                        initialValue: [],
+                        in: { $setUnion: ["$$value", "$$this"] }
+                    }
+                }
+            }
+        }
+      ]);
+
+
+
+      const hostId = findBestMatch(tagsResult[0].tags, tags)
 
       // Create a new post
       const newPost = {
