@@ -1200,7 +1200,7 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
       // Construct the file URL
       const fileUrl = `https://sumbroo-media-upload.s3.us-east-1.amazonaws.com/${FILE_KEY}`;
 
-      // here yyou have to pick the target user, aka the host, then save his/her userId
+      // here you have to pick the target user, aka the host, then save his/her userId
       // in the database. 
       // @TODO: FUNCTION THAT PICKS THE RIGHT HOST BASED ON THE TARGET
 
@@ -1238,13 +1238,12 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
         }
       ]);
 
-
-
       const hostId = findBestMatch(tagsResult[0].tags, tags)
 
       // Create a new post
       const newPost = {
         postTitle: postTitle, 
+        hostUserId: hostId,
         postStatus: "in review", // Set the initial status to "in review"
         platform: "pinterest", // Set the platform to "pinterest"
         content: {
