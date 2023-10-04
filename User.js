@@ -174,7 +174,7 @@ const UserSchema = new Schema({
     },
     stripeId: {
         type: String,
-        unique: true
+        unique: false
     },
     socialMediaLinks: [SocialMediaLinkSchema]
 });
