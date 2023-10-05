@@ -228,7 +228,7 @@ app.post('/api/webhook', async (request, response) => {
 
   try {
     event = stripe.webhooks.constructEvent(
-      request.rawBody,
+      request.rawRaw.toString(),
       signature,
       endpointSecret
     );
