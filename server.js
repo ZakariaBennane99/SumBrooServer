@@ -374,14 +374,14 @@ app.post('/api/create-customer-portal-session', async (req, res) => {
 
   // let user = await User.findOne({  })
   // you can use the userId to get thier cusomterId
-  const { customerId } = req.body;
+  const { stripeCustomer } = req.body;
 
   // This is the url to which the customer will be redirected when they are done
   // managing their billing with the portal.
   const returnUrl = 'http://localhost:3000/settings/billing';
 
   const portalSession = await stripe.billingPortal.sessions.create({
-    customer: customerId,
+    customer: stripeCustomer,
     return_url: returnUrl,
   });
 
