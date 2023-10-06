@@ -1219,7 +1219,7 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
         {
             $group: {
                 _id: "$_id", // User's ID
-                tags: { $addToSet: "$socialMediaLinks.posts.targetingTags" }
+                tags: { $addToSet: "$socialMediaLinks.audience" }
             }
         },
 

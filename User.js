@@ -76,7 +76,7 @@ const PostSchema = new Schema({
     }
 });
 
-const SocialMediaLinks = new Schema({
+const SocialMediaLinkSchema = new Schema({
     platformName: {
         type: String,
         required: true
