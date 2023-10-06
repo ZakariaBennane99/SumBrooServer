@@ -1235,15 +1235,11 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
           }
         }
       ]);
-      
-      console.log(tagsResult)
 
       const hostId = findBestMatch(tagsResult, tags)
 
-      console.log('The target Host ID chosen', hostId)
-
       // Create a new post
-      /*
+  
       const newPost = {
         postTitle: postTitle, 
         hostUserId: hostId,
@@ -1275,7 +1271,6 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
 
       // Save the user document
       await user.save();
-      */
   
       return res.status(200).send({ success: true }); 
 
