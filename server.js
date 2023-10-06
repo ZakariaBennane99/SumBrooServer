@@ -1208,42 +1208,42 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
 
         // Unwind the socialMediaLinks array to denormalize the data
         { $unwind: "$socialMediaLinks" },
-
+      
         // Match users that have the provided niche and don't have the provided ID
         { $match: { "socialMediaLinks.niche": niche, _id: { $ne: userId } } },
-
-        // Unwind the posts array to denormalize the data
-        { $unwind: "$socialMediaLinks.posts" },
-
+      
         // Group by user ID to aggregate the unique tags for each user
         {
-            $group: {
-                _id: "$_id", // User's ID
-                tags: { $addToSet: "$socialMediaLinks.audience" }
-            }
+          $group: {
+            _id: "$_id", // User's ID
+            tags: { $addToSet: "$socialMediaLinks.audience" }
+          }
         },
-
+      
         // Flatten the tags array and project the final structure with the user's ID
         {
-            $project: {
-                _id: 0, 
-                id: "$_id",
-                tags: {
-                    $reduce: {
-                        input: "$tags",
-                        initialValue: [],
-                        in: { $setUnion: ["$$value", "$$this"] }
-                    }
-                }
+          $project: {
+            _id: 0, 
+            id: "$_id",
+            tags: {
+              $reduce: {
+                input: "$tags",
+                initialValue: [],
+                in: { $setUnion: ["$$value", "$$this"] }
+              }
             }
+          }
         }
       ]);
-
+      
       console.log(tagsResult)
 
-      const hostId = findBestMatch(tagsResult[0].tags, tags.toLowerCase())
+      const hostId = findBestMatch(tagsResult, tags)
+
+      console.log('The target Host ID chosen', hostId)
 
       // Create a new post
+      /*
       const newPost = {
         postTitle: postTitle, 
         hostUserId: hostId,
@@ -1275,6 +1275,7 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
 
       // Save the user document
       await user.save();
+      */
   
       return res.status(200).send({ success: true }); 
 
