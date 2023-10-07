@@ -1201,8 +1201,7 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
       const fileUrl = `https://sumbroo-media-upload.s3.us-east-1.amazonaws.com/${FILE_KEY}`;
 
       // here you have to pick the target user, aka the host, then save his/her userId
-      // in the database. 
-      // @TODO: FUNCTION THAT PICKS THE RIGHT HOST BASED ON THE TARGET
+      // in the database.
 
       const tagsResult = await User.aggregate([
 
@@ -1210,7 +1209,15 @@ app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(
         { $unwind: "$socialMediaLinks" },
       
         // Match users that have the provided niche and don't have the provided ID
-        { $match: { "socialMediaLinks.niche": niche, _id: { $ne: userId } } },
+        {     
+          $match: { 
+            "socialMediaLinks.niche": niche, 
+            _id: { $ne: userId }, 
+            accountStatus: "active", 
+            "socialMediaLinks.profileStatus": "active", 
+            "socialMediaLinks.platformName": platform 
+          }  
+        },
       
         // Group by user ID to aggregate the unique tags for each user
         {
