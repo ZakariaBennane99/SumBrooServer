@@ -1,4 +1,4 @@
-import { Schema, model } from "mongoose";
+import { Schema, model, models } from "mongoose";
 
 const MediaContentSchema = new Schema({
     mediaType: {
@@ -78,12 +78,10 @@ const PostSchema = new Schema({
 
 const SocialMediaLinkSchema = new Schema({
     platformName: {
-        type: String,
-        required: true
+        type: String
     },
     profileLink: {
-        type: String,
-        required: true
+        type: String
     }, 
     profileStatus: {
         type: String,
@@ -93,8 +91,7 @@ const SocialMediaLinkSchema = new Schema({
         // "Disabled": profile disabled by admin for quality and other issues.(rare case)
         // "Active": profile is fully active. 
         // "Pending": awaiting user payment
-        // Settings > Linked Accounts, or he/she can click on the manage billing and pay from there. 
-        required: true
+        // Settings > Linked Accounts, or he/she can click on the manage billing and pay from there.
         // If rejected, we remove the profile and send him a message on why 
         // we rejected him and that when he fulfills the reqs, he can a send a profile linking req
     }, 
@@ -138,11 +135,9 @@ const SocialMediaLinkSchema = new Schema({
 const UserSchema = new Schema({
     name: {
         type: String,
-        required: true
     },
     email: {
         type: String,
-        required: true,
         unique: true
     },
     accountStatus: {
@@ -153,8 +148,7 @@ const UserSchema = new Schema({
         // "Active": account is fully active.
         // "Pending": awaiting user payment/onboarding before activation. You'll have to send an email
         // in which you direct them to pay first, then start onboarding. The email link expires after
-        // 48H after which the user is deleted from the DB.
-        required: true
+        // 48H after which the user is deleted from the DB
         // If rejected, we remove the user entirely and send him a message on why 
         // we rejected him and that when he fulfills the reqs, he can create an account again
     }, 
@@ -169,8 +163,7 @@ const UserSchema = new Schema({
         default: 0
     },
     applicationDate: {
-        type: String, 
-        required: true
+        type: String
     },
     stripeId: {
         type: String,
