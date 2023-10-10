@@ -176,13 +176,15 @@ const verifyTokenMiddleware = async (req, res, next) => {
 
 app.post('/api/create-checkout-session', async (req, res) => {
 
-  const { userId, tk } = req.body
+  const { userId, tk, paymentPlan } = req.body;
 
-  const sanitizedUserId = mongoSanitize.sanitize(userId);
+  let plan;
 
-  let user = await User.findOne({ _id: sanitizedUserId })
-
-  const paymentPlan = user.initialPlanChosen
+  if (!paymentPlan) {
+    const sanitizedUserId = mongoSanitize.sanitize(userId);
+    let user = await User.findOne({ _id: sanitizedUserId })
+    plan = user.initialPlanChosen;
+  }
 
   // to change the price in live mode to: price: prices.data[0].id,
 
@@ -193,7 +195,7 @@ app.post('/api/create-checkout-session', async (req, res) => {
       payment_method_types: ['card', 'paypal'],
       line_items: [
         {
-          price: paymentPlan,
+          price: paymentPlan || plan,
           quantity: 1
         },
       ],
