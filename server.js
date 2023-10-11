@@ -293,7 +293,6 @@ app.post('/api/complete-account',
 ], async (req, res) => {
     const errors = validationResult(req)
     if (!errors.isEmpty()) {
-      console.log('THE FUCK', errors.array())
       return res.status(400).json({ errors: errors.array() })
     }
 
@@ -311,7 +310,7 @@ app.post('/api/complete-account',
 
 
       user.name = formValues.name;
-      user.email = formValues.name;
+      user.email = formValues.email;
       /// before saving the user to the DB, encrypt the password with bcrypt ///
       user.password = await bcrypt.hash(formValues.password, await bcrypt.genSalt(saltRounds))
       // update the user onboarding step
