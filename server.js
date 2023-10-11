@@ -267,6 +267,82 @@ app.post('/api/webhook', async (request, response) => {
 
 
 
+app.post('/api/complete-account',  
+[
+  check('formValues.name', 'Name is required').not().isEmpty().trim().escape(),
+  check('formValues.name', 'Name should be between 2 and 30 characters').isLength({ min: 2, max: 30 }),
+  check('formValues.name', 'Name should only contain alphanumeric characters').isAlphanumeric(),
+  check('formValues.email', 'Please include a valid email').isEmail().normalizeEmail().trim(),
+  check('formValues.email').custom(value => {
+    const domain = value.split('@')[1]; // Extract domain from email
+    return new Promise((resolve, reject) => {
+      dns.resolveMx(domain, (err, addresses) => {
+        if (err) reject(new Error('Please include a valid email'));
+        if (addresses && addresses.length > 0) resolve(true);
+        else reject(new Error('Please include a valid email'));
+      });
+    });
+  }),
+  check('formValues.password')
+    .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long')
+    .matches(/[a-z]/).withMessage('Password must contain at least one lowercase letter')
+    .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
+    .matches(/[0-9]/).withMessage('Password must contain at least one number')
+    .matches(/[!@#$%^&*]/).withMessage('Password must contain at least one special character (!@#$%^&*)')
+    .trim().escape()
+], async (req, res) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() })
+    }
+
+    try {
+
+      const { userId, formValues } = req.body
+
+      const sanitizedUserId = mongoSanitize.sanitize(userId)
+
+      let user = await User.findOne({ _id: sanitizedUserId  })
+      if (!user || user.onboardingStep !== 0) {
+        res.status(500).json({ errors: 'Server error' })
+        return
+      }
+
+
+      user.name = formValues.name;
+      user.email = formValues.name;
+      /// before saving the user to the DB, encrypt the password with bcrypt ///
+      user.password = await bcrypt.hash(formValues.password, await bcrypt.genSalt(saltRounds))
+      // update the user onboarding step
+      user.onboardingStep = 1
+      /// now save the user and the profile to the DB ///
+      await user.save()
+
+      // now create a token for the payment
+      const payload = {
+        userId: userId,
+        action: 'payment'
+      }
+    
+      jwt.sign(payload,
+        process.env.JWT_SECRET,
+        { expiresIn: '1h' },
+        (err, token) => {
+            if (err) throw err;
+    
+            res.status(201).json({ success: true, token: token });
+            return;
+        });
+
+    } catch (err) {
+      console.error(err.message); // Log the error for debugging purposes.
+      res.status(500).send('Server error');
+      return
+    }
+
+})
+
+
 app.post('/api/set-up-password',  
 [
   check('pass')
@@ -401,7 +477,7 @@ app.post('/api/create-customer-portal-session', async (req, res) => {
 app.post('/api/new-application',
   [
     check('name', 'Name is required').not().isEmpty().trim().escape(),
-    check('name', 'Name should be between 5 and 30 characters').isLength({ min: 5, max: 30 }),
+    check('name', 'Name should be between 2 and 30 characters').isLength({ min: 2, max: 30 }),
     check('name', 'Name should only contain alphanumeric characters').isAlphanumeric(),
     check('email', 'Please include a valid email').isEmail().normalizeEmail().trim(),
     check('email').custom(value => {
