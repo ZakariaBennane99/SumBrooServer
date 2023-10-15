@@ -1,6 +1,7 @@
 import express from 'express';
 import jwt from "jsonwebtoken";
 import User from './User.js';
+import Feedback from './Feedback.js';
 import helmet from 'helmet';
 import { check, validationResult, body } from 'express-validator';
 import dotenv from 'dotenv';
@@ -23,6 +24,7 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -1015,6 +1017,33 @@ app.post('/api/update-password', verifyTokenMiddleware,
     return res.status(500).send({ error: true });
   }
 });
+
+
+// @route   POST /api/feedback-handler
+// @desc    send Feedback to MongoDB
+// @access  Private
+
+app.post('/api/feedback-handler', [
+  body('rating').isInt({ min: 1, max: 5 }).toInt(),
+  body('feedback').trim().escape().isLength({ max: 800 })
+], async (req, res) => {
+  // Check for validation errors
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+  }
+
+  try {
+      const { rating, feedback } = req.body;
+      const newFeedback = new Feedback({ rating, feedback });
+      await newFeedback.save();
+
+      res.status(200).json({ message: 'Feedback successfully stored!' });
+  } catch (error) {
+      res.status(500).json({ message: 'Server error', error });
+  }
+});
+
 
 
 // @route   POST /api/handle-post-submit/pinterest
