@@ -105,7 +105,7 @@ const app = express()
 
 // for cors purpose
 app.use(cors({
-  origin: 'http://localhost:3000', // your frontend domain
+  origin: 'http://localhost:4000', // your frontend domain
   credentials: true
 }));
 
