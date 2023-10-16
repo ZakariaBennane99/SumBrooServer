@@ -127,7 +127,7 @@ const urlencodedParser = bodyParser.urlencoded({
 
 app.use((req, res, next) => {
 
-  if (req.path === '/api/handle-post-submit/pinterest') {
+  if (req.path === '/server-api/handle-post-submit/pinterest') {
     return next();
   }
 
@@ -176,7 +176,7 @@ const verifyTokenMiddleware = async (req, res, next) => {
 // @desc    Register a new checkout session
 // @access  Public
 
-app.post('/api/create-checkout-session', async (req, res) => {
+app.post('/server-api/create-checkout-session', async (req, res) => {
 
   const { userId, tk, paymentPlan } = req.body;
 
@@ -224,7 +224,7 @@ app.post('/api/create-checkout-session', async (req, res) => {
 
 const endpointSecret = "whsec_7db5efb5afb9156ffd05dbf44beebea183b0c956aa689170771b5cd8f20c872d";
 
-app.post('/api/webhook', async (request, response) => {
+app.post('/server-api/webhook', async (request, response) => {
 
   const signature = request.headers['stripe-signature'];
 
@@ -269,7 +269,7 @@ app.post('/api/webhook', async (request, response) => {
 
 
 
-app.post('/api/complete-account',  
+app.post('/server-api/complete-account',  
 [
   check('formValues.name', 'Name is required').not().isEmpty().trim().escape(),
   check('formValues.name', 'Name should be between 2 and 30 characters').isLength({ min: 2, max: 30 }),
@@ -345,7 +345,7 @@ app.post('/api/complete-account',
 })
 
 
-app.post('/api/set-up-password',  
+app.post('/server-api/set-up-password',  
 [
   check('pass')
     .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long')
@@ -403,7 +403,7 @@ app.post('/api/set-up-password',
 
 })
 
-app.get('/api/verify-checkout', async (req, res) => {
+app.get('/server-api/verify-checkout', async (req, res) => {
 
   const { session_id } = req.query
 
@@ -446,11 +446,11 @@ app.get('/api/verify-checkout', async (req, res) => {
 })
 
 
-// @route   POST /api/create-portal-session
+// @route   POST /server-api/create-portal-session
 // @desc    Allow your users manage their billing info
 // @access  Public
 
-app.post('/api/create-customer-portal-session', async (req, res) => {
+app.post('/server-api/create-customer-portal-session', async (req, res) => {
 
   // let user = await User.findOne({  })
   // you can use the userId to get thier cusomterId
@@ -476,7 +476,7 @@ app.post('/api/create-customer-portal-session', async (req, res) => {
 // @desc    Create a new application
 // @access  Public
 
-app.post('/api/new-application',
+app.post('/server-api/new-application',
   [
     check('name', 'Name is required').not().isEmpty().trim().escape(),
     check('name', 'Name should be between 2 and 30 characters').isLength({ min: 2, max: 30 }),
@@ -572,7 +572,7 @@ app.post('/api/new-application',
 // @desc    send an email for password change
 // @access  Public
 
-app.post("/api/initiate-password-change",  
+app.post("/server-api/initiate-password-change",  
 [
   check("email", "Please include a valid email").isEmail().normalizeEmail()
 ],
@@ -666,7 +666,7 @@ app.post("/api/initiate-password-change",
 })
 
 
-app.post("/api/check-password-otp",  
+app.post("/server-api/check-password-otp",  
 [
   check("otp", "Please include a valid 7-digit number.")
     .isInt({ min: 1000000, max: 9999999 })
@@ -713,7 +713,7 @@ app.post("/api/check-password-otp",
 })
 
 
-app.post('/api/change-password',  
+app.post('/server-api/change-password',  
 [
   check('pass')
     .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long')
@@ -773,12 +773,12 @@ app.post('/api/change-password',
 
 
 
-// @route   POST /api/auth
+// @route   POST /server-api/auth
 // @desc    authenticate user
 // @access  Public
 
 app.post(
-  '/api/auth',
+  '/server-api/auth',
   [
     check("email", "Please include a valid email").isEmail().normalizeEmail(),
     check("password", "Password is required").not().isEmpty().trim().escape()
@@ -850,11 +850,11 @@ app.post(
 })
 
 
-// @route   POST /api/checkToken
+// @route   POST /server-api/checkToken
 // @desc    Check if the user's token still valid
 // @access  Public
 
-app.post('/api/check-token', async (req, res) => {
+app.post('/server-api/check-token', async (req, res) => {
   // get the token from the header
   const token = req.header("x-auth-token")
 
@@ -886,11 +886,11 @@ app.post('/api/check-token', async (req, res) => {
 
 
 
-// @route   POST /api/sign-out-user
+// @route   POST /server-api/sign-out-user
 // @desc    Sign out user
 // @access  Private
 
-app.post('/api/sign-out-user', async (req, res) => {
+app.post('/server-api/sign-out-user', async (req, res) => {
   try {
     res.cookie('token', '', {
       httpOnly: true,
@@ -907,11 +907,11 @@ app.post('/api/sign-out-user', async (req, res) => {
 });
 
 
-// @route   POST /api/update-name
+// @route   POST /server-api/update-name
 // @desc    Update userName
 // @access  Private
 
-app.post('/api/update-name', verifyTokenMiddleware,
+app.post('/server-api/update-name', verifyTokenMiddleware,
 [
   check("name")
     .isLength({ min: 6 }).withMessage('Name must be at least 6 characters long.')
@@ -944,11 +944,11 @@ app.post('/api/update-name', verifyTokenMiddleware,
 });
 
 
-// @route   POST /api/update-email
+// @route   POST /server-api/update-email
 // @desc    Update user email
 // @access  Private
 
-app.post('/api/update-email', verifyTokenMiddleware,
+app.post('/server-api/update-email', verifyTokenMiddleware,
   [
     check("email", "Please include a valid email").isEmail().normalizeEmail(),
   ], async (req, res) => {
@@ -978,11 +978,11 @@ app.post('/api/update-email', verifyTokenMiddleware,
 });
 
 
-// @route   POST /api/update-password
+// @route   POST /server-api/update-password
 // @desc    Update user password
 // @access  Private
 
-app.post('/api/update-password', verifyTokenMiddleware,
+app.post('/server-api/update-password', verifyTokenMiddleware,
   [
     check('newPass')
     .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long')
@@ -1019,11 +1019,11 @@ app.post('/api/update-password', verifyTokenMiddleware,
 });
 
 
-// @route   POST /api/feedback-handler
+// @route   POST /server-api/feedback-handler
 // @desc    send Feedback to MongoDB
 // @access  Private
 
-app.post('/api/feedback-handler', [
+app.post('/server-api/feedback-handler', [
   body('rating').isInt({ min: 1, max: 5 }).toInt(),
   body('feedback').trim().escape().isLength({ max: 800 })
 ], async (req, res) => {
@@ -1046,12 +1046,12 @@ app.post('/api/feedback-handler', [
 
 
 
-// @route   POST /api/handle-post-submit/pinterest
+// @route   POST /server-api/handle-post-submit/pinterest
 // @desc    handle post submit for Pinterest, then reject errors 
 //          or add the data to the DB and S3
 // @access  Private
 
-app.post('/api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(), (req, res, next) => {
+app.post('/server-api/handle-post-submit/pinterest', verifyTokenMiddleware, fileUpload(), (req, res, next) => {
   try {
     console.log('Just hit the route')
     req.body.tags = JSON.parse(req.body.tags);
