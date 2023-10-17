@@ -1322,7 +1322,7 @@ app.post('/server-api/handle-post-submit/pinterest', verifyTokenMiddleware, file
             _id: { $ne: userId }, 
             accountStatus: "active", 
             "socialMediaLinks.profileStatus": "active", 
-            "socialMediaLinks.platformName": platform 
+            "socialMediaLinks.platformName": "pinterest"   // HERE SHOULD BE CONVERTED TO DYNAMIC VARIABLE 'platform'
           }  
         },
       
