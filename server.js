@@ -11,7 +11,9 @@ import connectDB from './db.js';
 import bcrypt from 'bcrypt'
 import Stripe from 'stripe';
 import mongoSanitize from 'express-mongo-sanitize';
-import { SESClient, SendTemplatedEmailCommand } from "@aws-sdk/client-ses";
+import * as FormData from 'form-data';
+import Mailgun from 'mailgun.js';
+// import { SESClient, SendTemplatedEmailCommand } from "@aws-sdk/client-ses";
 import dns from 'dns';
 import cookieParser from 'cookie-parser';
 // New AWS SDK v3 imports
@@ -592,43 +594,35 @@ app.post("/server-api/initiate-password-change",
     return
   }
 
-  // set up AWS SES
-  const sesClient = new SESClient({
-    region: process.env.AWS_REGION,
-    credentials: {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-    }
-  });
+  // set up MailGun
+  const mailgun = new Mailgun(FormData);
+  const mg = mailgun.client({ username: 'api', key: process.env.MAILGUN_API_KEY });
 
   try {
 
     async function sendEmail(user, OTP) {
-      const params = {
-          Destination: {
-              ToAddresses: [user.email]
-          },
-          Template: 'Password_OTP_Template',
-          TemplateData: JSON.stringify({
-            name: capitalize(user.name),
-            OTP: OTP
-          }),
-          Source: 'no-reply@sumbroo.com'
+      const data = {
+          from: 'no-reply@sumbroo.com',
+          to: user.email,
+          subject: 'SumBroo Password Reset', // This might not be necessary if your template includes the subject
+          template: 'Password_OTP_Template',
+          'h:X-Mailgun-Variables': JSON.stringify({
+              name: capitalize(user.name),
+              OTP: OTP
+          })
       };
   
-      const command = new SendTemplatedEmailCommand(params);
-  
       try {
-          const data = await sesClient.send(command);
+          const body = await mg.messages().send(data);
           return {
-            status: 200,
-            response: { success: true, messageId: data.MessageId }
+              status: 200,
+              response: { success: true, messageId: body.id }
           };
       } catch (err) {
           console.error(err);
           return {
-            status: 500,
-            response: { error: 'Failed to send the email.' }
+              status: 500,
+              response: { error: 'Failed to send the email.' }
           };
       }
     }
@@ -637,23 +631,23 @@ app.post("/server-api/initiate-password-change",
     const OTP = generateOTP()
     sendEmail(user, OTP).then(async result => {
       if (result.status === 200) {
-        console.log("Email sent successfully:", result.response);
-        // create the token here
-        const payload = {
-          otp: OTP,
-          userId: user.id
-        };
-        const token = jwt.sign(payload, process.env.OTP_SECRET, { expiresIn: '15m' });
-        // save the token in OnlyHttp 
-        res.cookie('otpTOKEN', token, {
-          httpOnly: true,
-          maxAge: 15 * 60 * 1000, // 15 minutes in milliseconds
-          // secure: true, // Uncomment this line if you're using HTTPS
-        });
-        return res.status(200).json({ ok: 'success' });
+          console.log("Email sent successfully:", result.response);
+          // create the token here
+          const payload = {
+              otp: OTP,
+              userId: user.id
+          };
+          const token = jwt.sign(payload, process.env.OTP_SECRET, { expiresIn: '15m' });
+          // save the token in OnlyHttp 
+          res.cookie('otpTOKEN', token, {
+              httpOnly: true,
+              maxAge: 15 * 60 * 1000, // 15 minutes in milliseconds
+              // secure: true, // Uncomment this line if you're using HTTPS
+          });
+          return res.status(200).json({ ok: 'success' });
       } else {
-        console.error("Error sending email:", result.response);
-        return res.status(500).json({ error: "Server" });
+          console.error("Error sending email:", result.response);
+          return res.status(500).json({ error: "Server" });
       }
     }); 
 
