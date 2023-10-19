@@ -11,7 +11,7 @@ import connectDB from './db.js';
 import bcrypt from 'bcrypt'
 import Stripe from 'stripe';
 import mongoSanitize from 'express-mongo-sanitize';
-import * as FormData from 'form-data';
+import formData from 'form-data';
 import Mailgun from 'mailgun.js';
 // import { SESClient, SendTemplatedEmailCommand } from "@aws-sdk/client-ses";
 import dns from 'dns';
@@ -595,61 +595,59 @@ app.post("/server-api/initiate-password-change",
   }
 
   // set up MailGun
-  const mailgun = new Mailgun(FormData);
-  const mg = mailgun.client({ username: 'api', key: process.env.MAILGUN_API_KEY });
+  const mailgun = new Mailgun(formData);
+  const client = mailgun.client({ username: 'api', key: process.env.MAILGUN_API_KEY });
 
   try {
 
-    async function sendEmail(user, OTP) {
-      const data = {
-          from: 'no-reply@sumbroo.com',
-          to: user.email,
-          subject: 'SumBroo Password Reset', // This might not be necessary if your template includes the subject
-          template: 'Password_OTP_Template',
-          'h:X-Mailgun-Variables': JSON.stringify({
-              name: capitalize(user.name),
-              OTP: OTP
-          })
-      };
-  
+    const OTP = generateOTP()
+
+    const messageData = {
+      from: 'SumBroo no-reply@sumbroo.com',
+      to: email,
+      subject: 'Your OTP for Password Reset',
+      template: 'otp password',
+      't:variables': JSON.stringify({
+        name: capitalize(user.name),
+        OTP: OTP
+      })
+    };
+
+    async function sendMessage() {
       try {
-          const body = await mg.messages().send(data);
-          return {
-              status: 200,
-              response: { success: true, messageId: body.id }
-          };
+        const response = await client.messages.create('sumbroo.com', messageData);
+        console.log(response);
+        return response;
       } catch (err) {
-          console.error(err);
-          return {
-              status: 500,
-              response: { error: 'Failed to send the email.' }
-          };
+        console.error("Error sending email:", );
+        return res.status(500).json({ error: "Server" });
       }
     }
   
+    
     // Send the email
-    const OTP = generateOTP()
-    sendEmail(user, OTP).then(async result => {
-      if (result.status === 200) {
-          console.log("Email sent successfully:", result.response);
-          // create the token here
-          const payload = {
-              otp: OTP,
-              userId: user.id
-          };
-          const token = jwt.sign(payload, process.env.OTP_SECRET, { expiresIn: '15m' });
-          // save the token in OnlyHttp 
-          res.cookie('otpTOKEN', token, {
-              httpOnly: true,
-              maxAge: 15 * 60 * 1000, // 15 minutes in milliseconds
-              // secure: true, // Uncomment this line if you're using HTTPS
-          });
-          return res.status(200).json({ ok: 'success' });
-      } else {
-          console.error("Error sending email:", result.response);
-          return res.status(500).json({ error: "Server" });
-      }
-    }); 
+    const re = await sendMessage();
+    console.log('The response', re)
+    if (re.status === 200) {
+      console.log("Email sent successfully:", re);
+      // create the token here
+      const payload = {
+          otp: OTP,
+          userId: user.id
+      };
+      const token = jwt.sign(payload, process.env.OTP_SECRET, { expiresIn: '15m' });
+      // save the token in OnlyHttp 
+      res.cookie('otpTOKEN', token, {
+          httpOnly: true,
+          maxAge: 15 * 60 * 1000, // 15 minutes in milliseconds
+          // secure: true, // Uncomment this line if you're using HTTPS
+      });
+      return res.status(200).json({ ok: 'success' });
+    } else {
+      console.error("Error sending email:", result.response);
+      return res.status(500).json({ error: "Server" });
+    }
+    
 
   } catch (error) {
     console.error('Error sending email:', error);
