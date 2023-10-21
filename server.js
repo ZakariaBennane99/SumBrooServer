@@ -28,6 +28,11 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
 
+// set the path of ffmpeg
+ffmpeg.setFfprobePath('C:\\Program Files\\ffmpeg-6.0-full_build\\bin\\ffprobe.exe');
+
+
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -94,6 +99,58 @@ function findBestMatch(objects, tags) {
   }
 
   return bestMatchId;
+}
+
+async function captureScreenshotAndUpload(filePath, userId) {
+  return new Promise((resolve, reject) => {
+    ffmpeg(filePath)
+      .on('end', async () => {
+        console.log('Screenshot taken');
+        const screenshotPath = '/tmp/screenshot.png';
+        const fileContent = fs.readFileSync(screenshotPath);
+
+        const FILE_KEY = 'pinterest-cover-' + userId;
+
+        // Upload the file to S3
+        const command = new PutObjectCommand({
+          Bucket: 'sumbroo-media-upload',
+          Key: FILE_KEY,
+          Body: fileContent, // This should be the file stream or file buffer
+          ACL: "public-read",  // To allow the file to be publicly accessible
+          ContentType: 'image/png'
+        });
+    
+        const awsRe = await s3Client.send(command);
+
+        console.log('Cover image was uploaded')
+    
+        // Construct the file URL
+        const fileUrl = `https://sumbroo-media-upload.s3.us-east-1.amazonaws.com/${FILE_KEY}`;
+
+
+        s3.upload(uploadParams, (err, data) => {
+          if (err) {
+            console.error('Error uploading screenshot:', err);
+            reject(err);
+          } else {
+            console.log('Screenshot uploaded:', data.Location);
+            resolve(data.Location);
+          }
+
+          // Optionally, delete the temporary screenshot file
+          fs.unlinkSync(screenshotPath);
+        });
+      })
+      .on('error', (err) => {
+        console.error('Error taking screenshot:', err);
+        reject(err);
+      })
+      .screenshots({
+        count: 1,
+        folder: '/tmp',
+        filename: 'screenshot.png'
+      });
+  });
 }
 
 
@@ -267,7 +324,6 @@ app.post('/server-api/webhook', async (request, response) => {
   }
 
 });
-
 
 
 
@@ -1159,7 +1215,7 @@ app.post('/server-api/handle-post-submit/pinterest', verifyTokenMiddleware, file
           return reject(new Error(errors.join(' ')));
         }
 
-        ffmpeg.ffprobe(tempFilePath, (err, metadata) => {
+        ffmpeg.ffprobe(tempFilePath, async (err, metadata) => {
 
           if (err) {
             console.log(err)
@@ -1199,6 +1255,13 @@ app.post('/server-api/handle-post-submit/pinterest', verifyTokenMiddleware, file
           const duration = metadata.format.duration;
           if (duration > 300 || duration < 4) {
             errors.push(`Video duration must be at least 4 seconds and at most 5 minutes. This video is ${duration.toFixed(2)} seconds long.`);
+          }
+
+          // if there is no error in the video, capture the first frame of the video 
+          // as a cover and save it to AWS for Pinterest
+          if (errors.length === 0) {
+            const screenshotUrl = await captureScreenshotAndUpload(tempFilePath);
+            console.log('Screenshot URL:', screenshotUrl);
           }
 
           fs.unlink(tempFilePath, (err) => {
