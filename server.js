@@ -115,14 +115,14 @@ async function captureScreenshotAndUpload(filePath, userId) {
         const command = new PutObjectCommand({
           Bucket: 'sumbroo-media-upload',
           Key: FILE_KEY,
-          Body: fileContent, // This should be the file stream or file buffer
+          Body: fileContent, 
           ACL: "public-read",  // To allow the file to be publicly accessible
           ContentType: 'image/png'
         });
     
         const awsRe = await s3Client.send(command);
 
-        console.log('Cover image was uploaded')
+        console.log('Cover image was uploaded', awsRe)
     
         // Construct the file URL
         const fileUrl = `https://sumbroo-media-upload.s3.us-east-1.amazonaws.com/${FILE_KEY}`;
