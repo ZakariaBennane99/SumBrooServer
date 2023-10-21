@@ -106,10 +106,12 @@ async function captureScreenshotAndUpload(filePath, userId) {
     ffmpeg(filePath)
       .on('end', async () => {
         console.log('Screenshot taken');
-        const screenshotPath = '/tmp/screenshot.png';
+        // this is in case multiple requests hit the route at the same
+        // time, as same file naming will cause issues
+        const screenshotPath = `/tmp/screenshot-${userId}.png`;
         const fileContent = fs.readFileSync(screenshotPath);
 
-        const FILE_KEY = 'pinterest-cover-' + userId;
+        const FILE_KEY = 'pinterest-video-cover-' + userId;
 
         // Upload the file to S3
         const command = new PutObjectCommand({
@@ -127,19 +129,9 @@ async function captureScreenshotAndUpload(filePath, userId) {
         // Construct the file URL
         const fileUrl = `https://sumbroo-media-upload.s3.us-east-1.amazonaws.com/${FILE_KEY}`;
 
+        // delete the screenshot after uploading to AWS
+        fs.unlinkSync(screenshotPath);
 
-        s3.upload(uploadParams, (err, data) => {
-          if (err) {
-            console.error('Error uploading screenshot:', err);
-            reject(err);
-          } else {
-            console.log('Screenshot uploaded:', data.Location);
-            resolve(data.Location);
-          }
-
-          // Optionally, delete the temporary screenshot file
-          fs.unlinkSync(screenshotPath);
-        });
       })
       .on('error', (err) => {
         console.error('Error taking screenshot:', err);
@@ -148,7 +140,7 @@ async function captureScreenshotAndUpload(filePath, userId) {
       .screenshots({
         count: 1,
         folder: '/tmp',
-        filename: 'screenshot.png'
+        filename: `screenshot-${userId}.png`
       });
   });
 }
@@ -1260,7 +1252,7 @@ app.post('/server-api/handle-post-submit/pinterest', verifyTokenMiddleware, file
           // if there is no error in the video, capture the first frame of the video 
           // as a cover and save it to AWS for Pinterest
           if (errors.length === 0) {
-            const screenshotUrl = await captureScreenshotAndUpload(tempFilePath);
+            const screenshotUrl = await captureScreenshotAndUpload(tempFilePath, req.userId);
             console.log('Screenshot URL:', screenshotUrl);
           }
 
