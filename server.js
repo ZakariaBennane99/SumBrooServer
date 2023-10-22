@@ -101,6 +101,12 @@ function findBestMatch(objects, tags) {
   return bestMatchId;
 }
 
+function isLessThan24(pubDate) {
+  const differenceInMilliseconds = getCurrentUTCDate() - pubDate;
+  const differenceInHours = differenceInMilliseconds / (1000 * 60 * 60);
+  return (differenceInHours <= 24 && differenceInHours >= 0)
+}
+
 async function captureScreenshotAndUpload(filePath, userId) {
   return new Promise((resolve, reject) => {
     ffmpeg(filePath)
@@ -1332,7 +1338,7 @@ app.post('/server-api/handle-post-submit/pinterest', verifyTokenMiddleware, file
     // here the date is in UTC
     // This is just a check up cuz I already implemented the check in the front-end
     // If users try to game the system they will get an error telling them to fuck off.
-    if (maxDate && maxDate >= getCurrentUTCDate()) {
+    if (isLessThan24(maxDate)) {
 
       return res.status(500).send({ error: err });
       

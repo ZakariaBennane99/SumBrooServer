@@ -104,7 +104,7 @@ const SocialMediaLinkSchema = new Schema({
     niche: {
         type: String
     },
-    lastPublished: {
+    lastReceivingDate: {
         type: Date,
         default: null
     },
