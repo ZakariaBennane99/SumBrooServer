@@ -129,6 +129,8 @@ async function captureScreenshotAndUpload(filePath, userId) {
         // Construct the file URL
         const fileUrl = `https://sumbroo-media-upload.s3.us-east-1.amazonaws.com/${FILE_KEY}`;
 
+        resolve(fileUrl)
+
         // delete the screenshot after uploading to AWS
         fs.unlinkSync(screenshotPath);
 
