@@ -26,6 +26,8 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { fileTypeFromBuffer } from 'file-type';
+
 
 
 // set the path of ffmpeg
@@ -156,11 +158,10 @@ async function captureScreenshotAndUpload(filePath, userId) {
 
 const PORT = 4050
 
-
 const saltRounds = 10
 
 dotenv.config();
-const app = express()
+const app = express();
 
 // for cors purpose
 app.use(cors({
@@ -732,18 +733,13 @@ app.post("/server-api/check-password-otp",
 
     const { otpTOKEN } = req.cookies;
 
-    console.log('The otpTOKEN', otpTOKEN)
-
     if (!otpTOKEN) {
       return res.status(500).send('Server error');
     }
 
-    console.log('After checking if the OTP exists.')
-
     jwt.verify(otpTOKEN, process.env.OTP_SECRET, (err, decoded) => {
 
       if (err) {
-        console.log('the OTP is wrong')
         // If the token is not valid or expired, wipe out the cookie
         res.clearCookie('token');
         return res.status(401).send('Expired OTP');
@@ -1243,6 +1239,11 @@ app.post('/server-api/handle-post-submit/pinterest', verifyTokenMiddleware, file
           const divisor = gcd(videoStream.width, videoStream.height);
           const simplifiedWidth = videoStream.width / divisor;
           const simplifiedHeight = videoStream.height / divisor;
+
+          const format = metadata.format.format_name.toLowerCase();
+          if (!['mov', 'mp4', 'm4v'].includes(format)) {
+            errors.push(`Invalid video format. This video's format is ${format}.`);
+          }
     
           if (Math.abs(2/3 - aspectRatio) > 0.2 && Math.abs(9/16 - aspectRatio) > 0.2) {
             errors.push(`Video aspect ratio must be 9:16 or 2:3. This video has ${simplifiedWidth}:${simplifiedHeight} ratio.`);
@@ -1346,13 +1347,18 @@ app.post('/server-api/handle-post-submit/pinterest', verifyTokenMiddleware, file
 
       let user = await User.findOne({ _id: userId })   
 
+      
+      const FILEDATA = image ? image.data : video.data;
+      
+      const FILEEXTENSION = await fileTypeFromBuffer(FILEDATA);
+      
       const FILE_KEY = 'pinterest-' + userId;
 
       // Upload the file to S3
       const command = new PutObjectCommand({
         Bucket: 'sumbroo-media-upload',
         Key: FILE_KEY,
-        Body: image ? image.data : video.data, // This should be the file stream or file buffer
+        Body: FILEDATA, // This should be the file stream or file buffer
         ACL: "public-read",  // To allow the file to be publicly accessible
         ContentType: image ? image.mimetype : video.mimetype
       });
@@ -1366,44 +1372,61 @@ app.post('/server-api/handle-post-submit/pinterest', verifyTokenMiddleware, file
       // in the database.
 
       const tagsResult = await User.aggregate([
-
         // Unwind the socialMediaLinks array to denormalize the data
         { $unwind: "$socialMediaLinks" },
       
+        // Filter based on the difference between lastReceivingDate and currentUTCDate
+        {
+          $addFields: {
+            hoursDifference: {
+              $divide: [
+                { $subtract: ["$$NOW", "$socialMediaLinks.lastReceivingDate"] },
+                1000 * 60 * 60, // Convert milliseconds to hours
+              ],
+            },
+          },
+        },
+        {
+          $match: {
+            hoursDifference: { $gte: 24 },
+          },
+        },
+      
         // Match users that have the provided niche and don't have the provided ID
-        {     
-          $match: { 
-            "socialMediaLinks.niche": niche, 
-            _id: { $ne: userId }, 
-            accountStatus: "active", 
-            "socialMediaLinks.profileStatus": "active", 
-            "socialMediaLinks.platformName": "pinterest"   // HERE SHOULD BE CONVERTED TO DYNAMIC VARIABLE 'platform'
-          }  
+        {
+          $match: {
+            "socialMediaLinks.niche": niche,
+            _id: { $ne: userId },
+            accountStatus: "active",
+            "socialMediaLinks.profileStatus": "active",
+            "socialMediaLinks.platformName": "pinterest", // Convert this to a dynamic variable 'platform'
+          },
         },
       
         // Group by user ID to aggregate the unique tags for each user
         {
           $group: {
             _id: "$_id", // User's ID
-            tags: { $addToSet: "$socialMediaLinks.audience" }
-          }
+            tags: { $addToSet: "$socialMediaLinks.audience" },
+          },
         },
       
         // Flatten the tags array and project the final structure with the user's ID
         {
           $project: {
-            _id: 0, 
+            _id: 0,
             id: "$_id",
             tags: {
               $reduce: {
                 input: "$tags",
                 initialValue: [],
-                in: { $setUnion: ["$$value", "$$this"] }
-              }
-            }
-          }
-        }
+                in: { $setUnion: ["$$value", "$$this"] },
+              },
+            },
+          },
+        },
       ]);
+      
 
       const hostId = findBestMatch(tagsResult, tags)
 
