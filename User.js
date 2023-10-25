@@ -106,7 +106,7 @@ const SocialMediaLinkSchema = new Schema({
     },
     lastReceivingDate: {
         type: Date,
-        default: null
+        default: new Date(0)
     },
     audience: {
         type: [String],

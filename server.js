@@ -8,12 +8,11 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import connectDB from './db.js';
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcrypt';
 import Stripe from 'stripe';
 import mongoSanitize from 'express-mongo-sanitize';
 import formData from 'form-data';
 import Mailgun from 'mailgun.js';
-// import { SESClient, SendTemplatedEmailCommand } from "@aws-sdk/client-ses";
 import dns from 'dns';
 import cookieParser from 'cookie-parser';
 // New AWS SDK v3 imports
@@ -1130,7 +1129,7 @@ app.post('/server-api/handle-post-submit/pinterest', verifyTokenMiddleware, file
 
   // Now validate the properties of the parsed object
   body('niche').isString().notEmpty().trim().escape(),
-  body('tags').isArray({ min: 4 }).withMessage('At least 4 tags should be selected.'),
+  body('tags').isArray({ min: 1 }).withMessage('At least 1 tag should be selected.'),
   body('tags.*').isString().trim().escape(),
 
   // Validate image
