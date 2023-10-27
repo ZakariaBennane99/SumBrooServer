@@ -154,6 +154,84 @@ async function captureScreenshotAndUpload(filePath, userId) {
   });
 }
 
+async function getAnalytics(startingDate, endDate, metricTypes, pinId, accessToken) {
+
+  const url = `https://api.pinterest.com/v5/pins/${pinId}/analytics?start_date=${startingDate}&end_date=${endDate}&metric_types=${encodeURIComponent(metricTypes.join(','))}&app_types=ALL&split_field=NO_SPLIT`;
+
+    try {
+
+      const response = await fetch(url, { 
+        method: 'GET', 
+        headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+        }, 
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        return result
+      } else {
+
+        console.error('Error:', response);
+        return null
+      }
+    } catch (error) {
+      console.error('Error getting pins', error);
+      return null
+    }
+}
+
+function createCronJob(userId, postId) {
+  let counter = 0;
+  
+  // Delay the start of the cron job by 24 hours
+  setTimeout(() => {
+    const job = cron.schedule('0 0 * * *', async () => {
+
+      // check if the post is published first before running the job
+      // because after the 24H, we would already have approved the post
+      const user = await User.findOne(
+        { 
+          '_id': userId, 
+          'socialMediaLinks': { $elemMatch: { 'platformName': 'pinterest' } }, // to be updated when having multiple platforms
+          'socialMediaLinks.posts': { $elemMatch: { 'postId': postId } }
+        }
+      );
+      const socialMediaLink = user.socialMediaLinks.find(link => link.platformName === 'pinterest');
+      const accessToken = socialMediaLink.accessToken;
+      const post = socialMediaLink.posts.find(post => post.postId === postId);
+      if (post.postStatus !== 'published') {
+        job.stop(); // stop the cron job if the post is not published
+      }
+
+      if (counter < 7) {
+
+        // the cron-job is running
+        console.log('Running cron job...');
+        // you can push data to the post object, but first 
+        // you need to get the data
+        const date = new Date(post.publishingDate);
+        const startingDate = date.toISOString().split('T')[0]; // yy-mm-dd
+        const endDate = new Date().toISOString().split('T')[0];
+        const metricTypes = [ "TOTAL_COMMENTS", "TOTAL_REACTIONS" ]
+        const pinId = post.postId;
+        const dt = await getAnalytics(startingDate, endDate, metricTypes, pinId, accessToken)
+
+        post.analytics.push(...newAnalyticsData);
+        await user.save();
+
+        counter++;
+        if (counter === 7) {
+          job.stop(); // Stop the job after it has run for 7 days
+        }
+      }
+    });
+
+    job.start(); // Start the cron job
+  }, 24 * 60 * 60 * 1000); // 24 hours in milliseconds
+}
+
 
 const PORT = 4050
 
@@ -1463,6 +1541,11 @@ app.post('/server-api/handle-post-submit/pinterest', verifyTokenMiddleware, file
       // Save the user document
       await user.save();
   
+
+      // here right after you finish, you need to schedule the CRON job for the 
+      // the Pinterest Comments, and Reactions 
+      
+
       return res.status(200).send({ success: true }); 
 
     }
@@ -1473,6 +1556,7 @@ app.post('/server-api/handle-post-submit/pinterest', verifyTokenMiddleware, file
   }
 
 });
+
 
 
 app.listen(PORT, () => {
