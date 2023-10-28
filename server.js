@@ -181,6 +181,43 @@ async function getAnalytics(startingDate, endDate, metricTypes, pinId, accessTok
       return null
     }
 }
+/*
+async function refreshToken(refToken) {
+
+  const authorization = `Basic ${Buffer.from(`1484362:${process.env.PINTEREST_APP_SECRET}`).toString('base64')}`;
+
+  try {
+      const response = await axios.post('https://api.pinterest.com/v5/oauth/token', null, {
+          headers: {
+              'Authorization': authorization,
+              'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          params: {
+              grant_type: 'refresh_token',
+              refresh_token: refToken
+          }
+      });
+
+      const data = response.data;
+      const now = new Date();
+      const currentUTCDate = new Date(now.getTime() + now.getTimezoneOffset() * 60000);
+
+      const tokenExpiryDate = new Date(currentUTCDate.getTime() + (data.expires_in * 1000));
+      const theNewToken = data.access_token;
+
+      return {
+        isError: false,
+        newToken: theNewToken,
+        expiryUTCDate: tokenExpiryDate
+      }
+
+  } catch (error) {
+      console.error('Error refreshing Pinterest token:', error.message);
+      return {
+        isError: true,
+      }
+  }
+}
 
 function createCronJob(userId, postId) {
   let counter = 0;
@@ -216,10 +253,37 @@ function createCronJob(userId, postId) {
         const endDate = new Date().toISOString().split('T')[0];
         const metricTypes = [ "TOTAL_COMMENTS", "TOTAL_REACTIONS" ]
         const pinId = post.postId;
-        const dt = await getAnalytics(startingDate, endDate, metricTypes, pinId, accessToken)
+        let dt;
+        dt = await getAnalytics(startingDate, endDate, metricTypes, pinId, accessToken)
+        // check the response, if it 
+        if (dt['code'] && dt['code'] === 403) {
+          const refreshedToken = await refreshToken(socialMediaLink.refreshToken);
+          if (!refreshedToken.isError) {
+            // save the refreshed token
+            socialMediaLink.accessToken = refreshedToken.newToken;
+            socialMediaLink.accesstokenExpirationDate = refreshedToken.expiryUTCDate;
+            // now call the getAnlaytics()
+            dt = await getAnalytics(startingDate, endDate, metricTypes, pinId, accessToken)
+          }
+        }
+        const { TOTAL_COMMENTS, TOTAL_REACTIONS } = dt.all.lifetime_metrics;
 
-        post.analytics.push(...newAnalyticsData);
-        await user.save();
+        let updatedAnalytics
+        if (counter === 0) { // this means there is no existing data
+          const updatedAnalytics = {
+            data: [
+              {
+                date: String, // Date in some string format yyyy-mm-dd
+                reactions: Number, // Number of reactions
+                comments: Number // Number of comments
+              }
+            ]
+          }
+          post.analytics.push(...newAnalyticsData);
+          await user.save();
+        } else {
+
+        }
 
         counter++;
         if (counter === 7) {
@@ -229,8 +293,9 @@ function createCronJob(userId, postId) {
     });
 
     job.start(); // Start the cron job
+
   }, 24 * 60 * 60 * 1000); // 24 hours in milliseconds
-}
+}*/
 
 
 const PORT = 4050
