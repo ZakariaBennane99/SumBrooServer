@@ -403,9 +403,9 @@ app.post('/server-api/create-checkout-session', async (req, res) => {
           quantity: 1
         },
       ],
-      success_url: `http://localhost:3000/settings/linked-accounts?grub=${tk}`,
+      success_url: `https://sumbroo.com/settings/linked-accounts?grub=${tk}`,
       // take him back to the onboarding page
-      cancel_url: 'http://localhost:3000/sign-in',
+      cancel_url: 'https://sumbroo.com',
       metadata: {
         userId: userId.toString()
       }
@@ -423,8 +423,7 @@ app.post('/server-api/create-checkout-session', async (req, res) => {
 // @route   POST /webhook
 // @desc    listen for the 'checkout.session.completed' event
 // @access  Public
-
-const endpointSecret = "whsec_7db5efb5afb9156ffd05dbf44beebea183b0c956aa689170771b5cd8f20c872d";
+const endpointSecret = "whsec_lncl9ItjnVWoI8q6NPCLyAy8m1C19wi4";
 
 app.post('/server-api/webhook', async (request, response) => {
 
@@ -644,6 +643,7 @@ app.get('/server-api/verify-checkout', async (req, res) => {
     // Handle the error
     res.status(500).json({ error: error.message })
   }
+
 })
 
 
